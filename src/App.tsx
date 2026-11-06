@@ -43,11 +43,13 @@ import {
   ArrowUp,
   ArrowDown,
   Volume1,
-  FileText
+  FileText,
+  ShieldAlert,
+  RotateCcw
 } from 'lucide-react';
 
 // ==========================================
-// CONSTANTS & PRESETS
+// CONSTANTS & NATURAL REFINED PALETTES
 // ==========================================
 
 export interface SectionTypeMeta {
@@ -61,18 +63,19 @@ export interface SectionTypeMeta {
   abletonColor: number;
 }
 
+// Organic, natural studio section palette (balanced, non-glaring hues)
 export const SECTION_TYPES: Record<string, SectionTypeMeta> = {
-  INTRO: { label: 'Intro', color: '#3B82F6', bg: 'rgba(59, 130, 246, 0.18)', border: '#60A5FA', intensity: 0.4, chords: [0, 7, 9, 5], defaultBars: 4, abletonColor: 13 },
-  VERSE: { label: 'Verse', color: '#10B981', bg: 'rgba(16, 185, 129, 0.18)', border: '#34D399', intensity: 0.65, chords: [9, 5, 0, 7], defaultBars: 8, abletonColor: 22 },
-  PRE_CHORUS: { label: 'Pre-Chorus', color: '#06B6D4', bg: 'rgba(6, 182, 212, 0.18)', border: '#22D3EE', intensity: 0.8, chords: [5, 7, 9, 7], defaultBars: 4, abletonColor: 35 },
-  CHORUS: { label: 'Chorus', color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.22)', border: '#FBBF24', intensity: 1.0, chords: [5, 0, 7, 9], defaultBars: 8, abletonColor: 9 },
-  POST_CHORUS: { label: 'Post-Chorus', color: '#FB923C', bg: 'rgba(251, 146, 60, 0.22)', border: '#FDBA74', intensity: 0.9, chords: [0, 7, 5, 5], defaultBars: 4, abletonColor: 10 },
-  BRIDGE: { label: 'Bridge', color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.22)', border: '#A78BFA', intensity: 0.85, chords: [2, 9, 0, 7], defaultBars: 8, abletonColor: 42 },
-  SOLO: { label: 'Solo / Inst', color: '#EC4899', bg: 'rgba(236, 72, 153, 0.22)', border: '#F472B6', intensity: 0.95, chords: [5, 7, 9, 0], defaultBars: 8, abletonColor: 48 },
-  BUILD: { label: 'Build Up', color: '#F43F5E', bg: 'rgba(244, 63, 94, 0.22)', border: '#FB7185', intensity: 0.95, chords: [5, 5, 7, 7], defaultBars: 4, abletonColor: 3 },
-  BREAKDOWN: { label: 'Breakdown', color: '#14B8A6', bg: 'rgba(20, 184, 166, 0.18)', border: '#2DD4BF', intensity: 0.45, chords: [0, 9, 5, 7], defaultBars: 4, abletonColor: 26 },
-  VAMP: { label: 'Vamp / Pad', color: '#A855F7', bg: 'rgba(168, 85, 247, 0.22)', border: '#C084FC', intensity: 0.6, chords: [0, 5, 0, 5], defaultBars: 4, abletonColor: 41 },
-  OUTRO: { label: 'Outro', color: '#64748B', bg: 'rgba(100, 116, 139, 0.2)', border: '#94A3B8', intensity: 0.35, chords: [0, 5, 0, 0], defaultBars: 4, abletonColor: 68 },
+  INTRO: { label: 'Intro', color: '#38BDF8', bg: 'rgba(56, 189, 248, 0.07)', border: 'rgba(56, 189, 248, 0.25)', intensity: 0.4, chords: [0, 7, 9, 5], defaultBars: 4, abletonColor: 13 },
+  VERSE: { label: 'Verse', color: '#10B981', bg: 'rgba(16, 185, 129, 0.07)', border: 'rgba(16, 185, 129, 0.25)', intensity: 0.65, chords: [9, 5, 0, 7], defaultBars: 8, abletonColor: 22 },
+  PRE_CHORUS: { label: 'Pre-Chorus', color: '#2DD4BF', bg: 'rgba(45, 212, 191, 0.07)', border: 'rgba(45, 212, 191, 0.25)', intensity: 0.8, chords: [5, 7, 9, 7], defaultBars: 4, abletonColor: 35 },
+  CHORUS: { label: 'Chorus', color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.09)', border: 'rgba(245, 158, 11, 0.30)', intensity: 1.0, chords: [5, 0, 7, 9], defaultBars: 8, abletonColor: 9 },
+  POST_CHORUS: { label: 'Post-Chorus', color: '#FB923C', bg: 'rgba(251, 146, 60, 0.07)', border: 'rgba(251, 146, 60, 0.25)', intensity: 0.9, chords: [0, 7, 5, 5], defaultBars: 4, abletonColor: 10 },
+  BRIDGE: { label: 'Bridge', color: '#A78BFA', bg: 'rgba(167, 139, 250, 0.08)', border: 'rgba(167, 139, 250, 0.28)', intensity: 0.85, chords: [2, 9, 0, 7], defaultBars: 8, abletonColor: 42 },
+  SOLO: { label: 'Solo / Inst', color: '#F472B6', bg: 'rgba(244, 114, 182, 0.08)', border: 'rgba(244, 114, 182, 0.28)', intensity: 0.95, chords: [5, 7, 9, 0], defaultBars: 8, abletonColor: 48 },
+  BUILD: { label: 'Build Up', color: '#FB7185', bg: 'rgba(251, 113, 133, 0.09)', border: 'rgba(251, 113, 133, 0.30)', intensity: 0.95, chords: [5, 5, 7, 7], defaultBars: 4, abletonColor: 3 },
+  BREAKDOWN: { label: 'Breakdown', color: '#06B6D4', bg: 'rgba(6, 182, 212, 0.07)', border: 'rgba(6, 182, 212, 0.25)', intensity: 0.45, chords: [0, 9, 5, 7], defaultBars: 4, abletonColor: 26 },
+  VAMP: { label: 'Vamp / Pad', color: '#C084FC', bg: 'rgba(192, 132, 252, 0.08)', border: 'rgba(192, 132, 252, 0.28)', intensity: 0.6, chords: [0, 5, 0, 5], defaultBars: 4, abletonColor: 41 },
+  OUTRO: { label: 'Outro', color: '#94A3B8', bg: 'rgba(148, 163, 184, 0.07)', border: 'rgba(148, 163, 184, 0.22)', intensity: 0.35, chords: [0, 5, 0, 0], defaultBars: 4, abletonColor: 68 },
 };
 
 export interface StemMask {
@@ -102,6 +105,7 @@ export interface TrackItem {
   color: string;
   route: string;
   volume: number;
+  pan: number;
   muted: boolean;
   solo: boolean;
   subdivision?: string;
@@ -131,22 +135,23 @@ export interface MidiMapping {
 }
 
 const INITIAL_SECTIONS: SectionItem[] = [
-  { id: 'sec-1', type: 'INTRO', name: 'Intro', bars: 4, stemMask: { drums: false, bass: true, keys: true, guitar: true, vocals: false }, chordsText: 'C - G - Am - F', mdNotes: 'Ambient keys & electric guitar swelling', customCue: 'Intro In 4' },
-  { id: 'sec-2', type: 'VERSE', name: 'Verse 1', bars: 8, stemMask: { drums: true, bass: true, keys: true, guitar: true, vocals: true }, chordsText: 'Am - F - C - G', mdNotes: 'Drums 4-on-the-floor, bass grooving', customCue: 'Verse 1' },
-  { id: 'sec-3', type: 'CHORUS', name: 'Chorus 1', bars: 8, stemMask: { drums: true, bass: true, keys: true, guitar: true, vocals: true }, chordsText: 'F - C - G - Am', mdNotes: 'All in! Big open hi-hat and guitars', customCue: 'Chorus 1' },
+  { id: 'sec-1', type: 'INTRO', name: 'Intro', bars: 4, stemMask: { drums: false, bass: true, keys: true, guitar: true, vocals: false }, chordsText: 'C - G - Am - F', mdNotes: 'Ambient keys & guitar swells', customCue: 'Intro In 4' },
+  { id: 'sec-2', type: 'VERSE', name: 'Verse 1', bars: 8, stemMask: { drums: true, bass: true, keys: true, guitar: true, vocals: true }, chordsText: 'Am - F - C - G', mdNotes: 'Drums 4-on-the-floor, bass groove', customCue: 'Verse 1' },
+  { id: 'sec-3', type: 'CHORUS', name: 'Chorus 1', bars: 8, stemMask: { drums: true, bass: true, keys: true, guitar: true, vocals: true }, chordsText: 'F - C - G - Am', mdNotes: 'Full band anthem', customCue: 'Chorus 1' },
   { id: 'sec-4', type: 'BRIDGE', name: 'Bridge', bars: 8, stemMask: { drums: true, bass: true, keys: true, guitar: true, vocals: true }, chordsText: 'Dm - Am - C - G', mdNotes: 'Snare build on bar 7 into final chorus', customCue: 'Bridge' },
   { id: 'sec-5', type: 'CHORUS', name: 'Chorus 2 (Big)', bars: 8, stemMask: { drums: true, bass: true, keys: true, guitar: true, vocals: true }, chordsText: 'F - C - G - Am', mdNotes: 'Double chorus, maximum energy', customCue: 'Big Chorus' },
   { id: 'sec-6', type: 'OUTRO', name: 'Outro', bars: 4, stemMask: { drums: true, bass: true, keys: true, guitar: false, vocals: false }, chordsText: 'C - F - C - C', mdNotes: 'Ringtone ending on acoustic piano', customCue: 'Outro' },
 ];
 
+// Rich, natural acoustic & studio stem color palette (warm terracotta, honey brass, atmospheric cyan, sage jade, rose orchid)
 const INITIAL_TRACKS: TrackItem[] = [
-  { id: 'click', name: 'CLICK TRACK', category: 'UTILITY', color: '#94A3B8', route: 'Out 3 (Click/Cue)', volume: 0.85, muted: false, solo: false, subdivision: '1/4' },
-  { id: 'cues', name: 'VOICE CUES (MD)', category: 'UTILITY', color: '#38BDF8', route: 'Out 3 (Click/Cue)', volume: 0.95, muted: false, solo: false, voiceEnabled: true },
-  { id: 'drums', name: 'DRUMS STEM', category: 'STEM', color: '#F97316', route: 'Out 4 (Drums)', volume: 0.85, muted: false, solo: false },
-  { id: 'bass', name: 'SYNTH & SUB BASS', category: 'STEM', color: '#EAB308', route: 'Out 5 (Bass)', volume: 0.82, muted: false, solo: false },
-  { id: 'keys', name: 'KEYS & ANALOG PADS', category: 'STEM', color: '#06B6D4', route: 'Out 6-7 (Keys/Stems)', volume: 0.78, muted: false, solo: false },
-  { id: 'guitar', name: 'ELECTRIC GUITARS', category: 'STEM', color: '#22C55E', route: 'Out 6-7 (Keys/Stems)', volume: 0.75, muted: false, solo: false },
-  { id: 'vocals', name: 'BGVs & VOX CHOIR', category: 'STEM', color: '#EC4899', route: 'Out 1-2 (Main FOH)', volume: 0.80, muted: false, solo: false },
+  { id: 'click', name: 'CLICK TRACK', category: 'UTILITY', color: '#94A3B8', route: 'Out 3 (Click/Cue)', volume: 0.85, pan: 0, muted: false, solo: false, subdivision: '1/4' },
+  { id: 'cues', name: 'VOICE CUES (MD)', category: 'UTILITY', color: '#38BDF8', route: 'Out 3 (Click/Cue)', volume: 0.95, pan: 0, muted: false, solo: false, voiceEnabled: true },
+  { id: 'drums', name: 'DRUMS STEM', category: 'STEM', color: '#E06D53', route: 'Out 4 (Drums)', volume: 0.85, pan: 0, muted: false, solo: false },
+  { id: 'bass', name: 'SYNTH & SUB BASS', category: 'STEM', color: '#E5A93C', route: 'Out 5 (Bass)', volume: 0.82, pan: 0, muted: false, solo: false },
+  { id: 'keys', name: 'KEYS & ANALOG PADS', category: 'STEM', color: '#22D3EE', route: 'Out 6-7 (Keys/Stems)', volume: 0.78, pan: 0, muted: false, solo: false },
+  { id: 'guitar', name: 'ELECTRIC GUITARS', category: 'STEM', color: '#34D399', route: 'Out 6-7 (Keys/Stems)', volume: 0.75, pan: 0, muted: false, solo: false },
+  { id: 'vocals', name: 'BGVs & VOX CHOIR', category: 'STEM', color: '#E879F9', route: 'Out 1-2 (Main FOH)', volume: 0.80, pan: 0, muted: false, solo: false },
 ];
 
 const OUTPUT_ROUTES = [
@@ -215,7 +220,7 @@ function pseudoRandom(seed: number) {
 // ==========================================
 
 export default function App() {
-  // Setlist & Song Master State
+  // Setlist & Master Controls
   const [setlist, setSetlist] = useState<SongPreset[]>(SONG_PRESETS);
   const [activeSongId, setActiveSongId] = useState('song-1');
   const [projectName, setProjectName] = useState('Midnight Horizon (Live Arena Rig)');
@@ -229,15 +234,16 @@ export default function App() {
   const [viewMode, setViewMode] = useState<'ARRANGE' | 'STAGE'>('ARRANGE');
   const [loopSectionId, setLoopSectionId] = useState<string | null>(null);
 
+  // Metronome Sound
+  const [clickSound, setClickSound] = useState<'BEEP' | 'WOODBLOCK' | 'RIMSHOT'>('WOODBLOCK');
+
   // Sections & Tracks State
   const [sections, setSections] = useState<SectionItem[]>(INITIAL_SECTIONS);
   const [tracks, setTracks] = useState<TrackItem[]>(INITIAL_TRACKS);
   const [selectedSectionId, setSelectedSectionId] = useState('sec-1');
-
-  // Drag and drop state for sections
   const [draggedSectionIndex, setDraggedSectionIndex] = useState<number | null>(null);
 
-  // Playhead Position State
+  // Playhead & Meters
   const [currentStep, setCurrentStep] = useState(0);
   const [activeCueBanner, setActiveCueBanner] = useState<string | null>(null);
   const [trackMeters, setTrackMeters] = useState<Record<string, number>>({});
@@ -252,10 +258,9 @@ export default function App() {
   const [showMidiModal, setShowMidiModal] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showChartModal, setShowChartModal] = useState(false);
-  const [showAudioSettingsModal, setShowAudioSettingsModal] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // MIDI Controller State & Custom Mappings
+  // MIDI Controller State
   const [midiSupported, setMidiSupported] = useState(false);
   const [midiConnectedDevice, setMidiConnectedDevice] = useState<string | null>(null);
   const [midiActivity, setMidiActivity] = useState(false);
@@ -269,14 +274,12 @@ export default function App() {
     tapTempo: 45
   });
 
-  // Audio Output Detection
-  const [detectedAudioChannels, setDetectedAudioChannels] = useState<number>(2);
-
-  // Tap Tempo State
+  // Tap Tempo
   const tapTimesRef = useRef<number[]>([]);
 
   // Web Audio Lookahead Engine Refs
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const masterCompressorRef = useRef<DynamicsCompressorNode | null>(null);
   const isPlayingRef = useRef(false);
   const stepRef = useRef(0);
   const nextStepTimeRef = useRef(0);
@@ -286,6 +289,7 @@ export default function App() {
   const pitchShiftRef = useRef(pitchShift);
   const loopSectionIdRef = useRef(loopSectionId);
   const timeSigRef = useRef(timeSig);
+  const clickSoundRef = useRef(clickSound);
   const timelineContainerRef = useRef<HTMLDivElement | null>(null);
   const lookaheadTimerRef = useRef<number | null>(null);
   const midiMappingsRef = useRef(midiMappings);
@@ -298,6 +302,7 @@ export default function App() {
   useEffect(() => { loopSectionIdRef.current = loopSectionId; }, [loopSectionId]);
   useEffect(() => { timeSigRef.current = timeSig; }, [timeSig]);
   useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+  useEffect(() => { clickSoundRef.current = clickSound; }, [clickSound]);
   useEffect(() => { midiMappingsRef.current = midiMappings; }, [midiMappings]);
   useEffect(() => { midiLearningActionRef.current = midiLearningAction; }, [midiLearningAction]);
 
@@ -365,18 +370,41 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 3000);
   }, []);
 
+  // Web Audio Setup with Studio Master Limiter
   const initAudioContext = useCallback(() => {
     if (!audioCtxRef.current) {
       const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      audioCtxRef.current = new AudioContextClass();
-      if (audioCtxRef.current.destination.maxChannelCount) {
-        setDetectedAudioChannels(audioCtxRef.current.destination.maxChannelCount);
-      }
+      const ctx = new AudioContextClass();
+      audioCtxRef.current = ctx;
+
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.setValueAtTime(-10, ctx.currentTime);
+      comp.knee.setValueAtTime(25, ctx.currentTime);
+      comp.ratio.setValueAtTime(6, ctx.currentTime);
+      comp.attack.setValueAtTime(0.003, ctx.currentTime);
+      comp.release.setValueAtTime(0.20, ctx.currentTime);
+      comp.connect(ctx.destination);
+      masterCompressorRef.current = comp;
     }
     if (audioCtxRef.current.state === 'suspended') {
       audioCtxRef.current.resume();
     }
   }, []);
+
+  const connectWithPan = (sourceNode: AudioNode, panVal: number) => {
+    const ctx = audioCtxRef.current;
+    if (!ctx) return;
+    const dest = masterCompressorRef.current || ctx.destination;
+
+    if (ctx.createStereoPanner) {
+      const panner = ctx.createStereoPanner();
+      panner.pan.setValueAtTime(Math.max(-1, Math.min(1, panVal || 0)), ctx.currentTime);
+      sourceNode.connect(panner);
+      panner.connect(dest);
+    } else {
+      sourceNode.connect(dest);
+    }
+  };
 
   const isTrackAudible = (trackId: string, allTracks: TrackItem[]) => {
     const anySolo = allTracks.some(t => t.solo);
@@ -387,9 +415,8 @@ export default function App() {
     return t.volume > 0.01;
   };
 
-  const getTrackVolume = (trackId: string, allTracks: TrackItem[]) => {
-    const t = allTracks.find(tr => tr.id === trackId);
-    return t ? t.volume : 0.8;
+  const getTrack = (trackId: string, allTracks: TrackItem[]) => {
+    return allTracks.find(tr => tr.id === trackId);
   };
 
   const triggerVoiceCue = useCallback((cueText: string, vol: number, targetTime?: number) => {
@@ -400,12 +427,12 @@ export default function App() {
       try {
         window.speechSynthesis.cancel();
         const utter = new SpeechSynthesisUtterance(cueText);
-        utter.rate = Math.min(1.4, Math.max(0.9, bpmRef.current / 110));
+        utter.rate = Math.min(1.35, Math.max(0.9, bpmRef.current / 115));
         utter.pitch = 1.0;
         utter.volume = Math.min(1, vol);
         window.speechSynthesis.speak(utter);
       } catch {
-        // Fallback tone handles sound
+        // Handled by cue tone
       }
     }
 
@@ -417,13 +444,60 @@ export default function App() {
     osc.type = 'sine';
     osc.frequency.setValueAtTime(587.33, now);
     osc.frequency.exponentialRampToValueAtTime(880, now + 0.09);
-    gain.gain.setValueAtTime(vol * 0.16, now);
+    gain.gain.setValueAtTime(vol * 0.15, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    connectWithPan(gain, getTrack('cues', tracksRef.current)?.pan || 0);
     osc.start(now);
     osc.stop(now + 0.13);
   }, []);
+
+  const playClickSound = (scheduledTime: number, isDownbeat: boolean, clickVol: number, pan: number) => {
+    const ctx = audioCtxRef.current;
+    if (!ctx) return;
+    const sound = clickSoundRef.current;
+
+    if (sound === 'WOODBLOCK') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(isDownbeat ? 1050 : 780, scheduledTime);
+      gain.gain.setValueAtTime(clickVol * 0.55, scheduledTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, scheduledTime + 0.035);
+      osc.connect(gain);
+      connectWithPan(gain, pan);
+      osc.start(scheduledTime);
+      osc.stop(scheduledTime + 0.04);
+    } else if (sound === 'RIMSHOT') {
+      const bufferSize = Math.floor(ctx.sampleRate * 0.03);
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'highpass';
+      filter.frequency.setValueAtTime(isDownbeat ? 3000 : 2000, scheduledTime);
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(clickVol * 0.45, scheduledTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, scheduledTime + 0.025);
+      noise.connect(filter);
+      filter.connect(gain);
+      connectWithPan(gain, pan);
+      noise.start(scheduledTime);
+    } else {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = isDownbeat ? 'triangle' : 'sine';
+      osc.frequency.setValueAtTime(isDownbeat ? 1650 : 1080, scheduledTime);
+      gain.gain.setValueAtTime(clickVol * (isDownbeat ? 0.42 : 0.22), scheduledTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, scheduledTime + 0.045);
+      osc.connect(gain);
+      connectWithPan(gain, pan);
+      osc.start(scheduledTime);
+      osc.stop(scheduledTime + 0.05);
+    }
+  };
 
   const scheduleAudioStep = useCallback((stepIndex: number, scheduledTime: number) => {
     const ctx = audioCtxRef.current;
@@ -465,27 +539,19 @@ export default function App() {
     // 1. CLICK TRACK
     const clickTrack = allTracks.find(t => t.id === 'click');
     if (isTrackAudible('click', allTracks)) {
-      const clickVol = getTrackVolume('click', allTracks);
+      const clickVol = clickTrack?.volume || 0.85;
       const shouldClick = clickTrack?.subdivision === '1/8' ? isEighthBeat : isQuarterBeat;
       if (shouldClick) {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
         const isDownbeat = stepInBar === 0;
-        osc.type = isDownbeat ? 'triangle' : 'sine';
-        osc.frequency.setValueAtTime(isDownbeat ? 1700 : isQuarterBeat ? 1150 : 850, scheduledTime);
-        gain.gain.setValueAtTime(clickVol * (isDownbeat ? 0.45 : isQuarterBeat ? 0.28 : 0.12), scheduledTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, scheduledTime + 0.045);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(scheduledTime);
-        osc.stop(scheduledTime + 0.05);
+        playClickSound(scheduledTime, isDownbeat, clickVol, clickTrack?.pan || 0);
         newMeters.click = isDownbeat ? 0.95 : 0.65;
       }
     }
 
-    // 2. VOICE CUES (MD GUIDE)
+    // 2. VOICE CUES
+    const cuesTrack = allTracks.find(t => t.id === 'cues');
     if (isTrackAudible('cues', allTracks)) {
-      const cueVol = getTrackVolume('cues', allTracks);
+      const cueVol = cuesTrack?.volume || 0.95;
       const spokenName = nextSec?.customCue || nextSec?.name || 'Section';
       if (nextSec && stepsRemainingInSection === curStepsPerBar) {
         triggerVoiceCue(`${spokenName}`, cueVol, scheduledTime);
@@ -511,8 +577,10 @@ export default function App() {
     const midiToFreq = (m: number) => 440 * Math.pow(2, (m + semitoneOffset - 69) / 12);
 
     // 3. DRUMS STEM
+    const drumsTrack = allTracks.find(t => t.id === 'drums');
     if (mask.drums && isTrackAudible('drums', allTracks)) {
-      const drumVol = getTrackVolume('drums', allTracks) * intensity;
+      const drumVol = (drumsTrack?.volume || 0.85) * intensity;
+      const drumPan = drumsTrack?.pan || 0;
       const isKick = stepInBar === 0 || stepInBar === 8 || (intensity > 0.7 && stepInBar === 10);
       const isSnare = stepInBar === 4 || stepInBar === 12;
       const isHat = stepInBar % 2 === 0 || (intensity >= 0.85 && stepInBar % 1 === 0);
@@ -525,7 +593,7 @@ export default function App() {
         gain.gain.setValueAtTime(drumVol * 0.72, scheduledTime);
         gain.gain.exponentialRampToValueAtTime(0.001, scheduledTime + 0.18);
         osc.connect(gain);
-        gain.connect(ctx.destination);
+        connectWithPan(gain, drumPan);
         osc.start(scheduledTime);
         osc.stop(scheduledTime + 0.19);
         newMeters.drums = Math.max(newMeters.drums || 0, 0.92 * intensity);
@@ -546,7 +614,7 @@ export default function App() {
         gain.gain.exponentialRampToValueAtTime(0.001, scheduledTime + 0.12);
         noise.connect(filter);
         filter.connect(gain);
-        gain.connect(ctx.destination);
+        connectWithPan(gain, drumPan);
         noise.start(scheduledTime);
         newMeters.drums = Math.max(newMeters.drums || 0, 0.88 * intensity);
       } else if (isHat) {
@@ -564,15 +632,17 @@ export default function App() {
         gain.gain.exponentialRampToValueAtTime(0.001, scheduledTime + 0.038);
         noise.connect(filter);
         filter.connect(gain);
-        gain.connect(ctx.destination);
+        connectWithPan(gain, drumPan);
         noise.start(scheduledTime);
         newMeters.drums = Math.max(newMeters.drums || 0, 0.45 * intensity);
       }
     }
 
     // 4. BASS STEM
+    const bassTrack = allTracks.find(t => t.id === 'bass');
     if (mask.bass && isTrackAudible('bass', allTracks)) {
-      const bassVol = getTrackVolume('bass', allTracks);
+      const bassVol = bassTrack?.volume || 0.82;
+      const bassPan = bassTrack?.pan || 0;
       if (isEighthBeat) {
         const osc = ctx.createOscillator();
         const filter = ctx.createBiquadFilter();
@@ -587,7 +657,7 @@ export default function App() {
         gain.gain.exponentialRampToValueAtTime(0.001, scheduledTime + 0.21);
         osc.connect(filter);
         filter.connect(gain);
-        gain.connect(ctx.destination);
+        connectWithPan(gain, bassPan);
         osc.start(scheduledTime);
         osc.stop(scheduledTime + 0.22);
         newMeters.bass = 0.78 * intensity;
@@ -595,8 +665,10 @@ export default function App() {
     }
 
     // 5. KEYS & PADS
+    const keysTrack = allTracks.find(t => t.id === 'keys');
     if (mask.keys && isTrackAudible('keys', allTracks)) {
-      const keysVol = getTrackVolume('keys', allTracks);
+      const keysVol = keysTrack?.volume || 0.78;
+      const keysPan = keysTrack?.pan || 0;
       if (stepInBar === 0 || (intensity >= 0.8 && stepInBar === 8)) {
         const chordIntervals = [0, 4, 7, 12];
         chordIntervals.forEach((interval) => {
@@ -609,7 +681,7 @@ export default function App() {
           gain.gain.linearRampToValueAtTime(keysVol * 0.08 * intensity, scheduledTime + 0.04);
           gain.gain.exponentialRampToValueAtTime(0.0008, scheduledTime + dur);
           osc.connect(gain);
-          gain.connect(ctx.destination);
+          connectWithPan(gain, keysPan);
           osc.start(scheduledTime);
           osc.stop(scheduledTime + dur + 0.02);
         });
@@ -618,8 +690,10 @@ export default function App() {
     }
 
     // 6. ELECTRIC GUITARS
+    const gtrTrack = allTracks.find(t => t.id === 'guitar');
     if (mask.guitar && isTrackAudible('guitar', allTracks)) {
-      const gtrVol = getTrackVolume('guitar', allTracks);
+      const gtrVol = gtrTrack?.volume || 0.75;
+      const gtrPan = gtrTrack?.pan || 0;
       const arpPattern = [0, 7, 12, 7, 4, 7, 12, 16];
       if (stepInBar % 2 === 0) {
         const noteOffset = arpPattern[(stepInBar / 2) % arpPattern.length];
@@ -630,7 +704,7 @@ export default function App() {
         gain.gain.setValueAtTime(gtrVol * 0.14 * intensity, scheduledTime);
         gain.gain.exponentialRampToValueAtTime(0.001, scheduledTime + 0.16);
         osc.connect(gain);
-        gain.connect(ctx.destination);
+        connectWithPan(gain, gtrPan);
         osc.start(scheduledTime);
         osc.stop(scheduledTime + 0.17);
         newMeters.guitar = 0.68 * intensity;
@@ -638,8 +712,10 @@ export default function App() {
     }
 
     // 7. VOCALS / BGV CHOIR
+    const voxTrack = allTracks.find(t => t.id === 'vocals');
     if (mask.vocals && isTrackAudible('vocals', allTracks)) {
-      const voxVol = getTrackVolume('vocals', allTracks);
+      const voxVol = voxTrack?.volume || 0.80;
+      const voxPan = voxTrack?.pan || 0;
       if (stepInBar === 0 || stepInBar === 6 || stepInBar === 12) {
         const melodyOffsets: Record<number, number> = { 0: 7, 6: 9, 12: 12 };
         const osc = ctx.createOscillator();
@@ -655,7 +731,7 @@ export default function App() {
         gain.gain.exponentialRampToValueAtTime(0.001, scheduledTime + 0.42);
         osc.connect(gain);
         osc2.connect(gain);
-        gain.connect(ctx.destination);
+        connectWithPan(gain, voxPan);
         osc.start(scheduledTime);
         osc2.start(scheduledTime);
         osc.stop(scheduledTime + 0.44);
@@ -855,7 +931,6 @@ export default function App() {
                 setMidiActivity(true);
                 setTimeout(() => setMidiActivity(false), 200);
 
-                // Handle MIDI Learn
                 if (midiLearningActionRef.current) {
                   const action = midiLearningActionRef.current as keyof MidiMapping;
                   setMidiMappings(prev => ({ ...prev, [action]: note }));
@@ -864,7 +939,6 @@ export default function App() {
                   return;
                 }
 
-                // Normal MIDI Triggering
                 const m = midiMappingsRef.current;
                 if (note === m.playPause) handlePlayPause();
                 else if (note === m.stop) handleStop();
@@ -1003,7 +1077,7 @@ export default function App() {
         vocals: typeKey === 'VERSE' || typeKey === 'CHORUS' || typeKey === 'PRE_CHORUS' || typeKey === 'BRIDGE'
       },
       chordsText: 'C - G - Am - F',
-      mdNotes: 'Band dynamic entrance',
+      mdNotes: 'Band entrance',
       customCue: meta.label
     };
     setSections([...sections, newSec]);
@@ -1024,8 +1098,28 @@ export default function App() {
     setTracks(prev => prev.map(t => t.id === id ? { ...t, volume: val } : t));
   };
 
+  const changePan = (id: string, pan: number) => {
+    setTracks(prev => prev.map(t => t.id === id ? { ...t, pan } : t));
+  };
+
   const changeRoute = (id: string, route: string) => {
     setTracks(prev => prev.map(t => t.id === id ? { ...t, route } : t));
+  };
+
+  const applySplitStereoRouting = () => {
+    setTracks(prev => prev.map(t => {
+      if (t.id === 'click' || t.id === 'cues') {
+        return { ...t, pan: -1.0 };
+      } else {
+        return { ...t, pan: 1.0 };
+      }
+    }));
+    showToast('Applied Split Stereo: Click/Cues (Left In-Ear) & Stems (Right FOH)');
+  };
+
+  const resetPanToCenter = () => {
+    setTracks(prev => prev.map(t => ({ ...t, pan: 0 })));
+    showToast('Reset all tracks to Center Pan');
   };
 
   const toggleClickSubdivision = () => {
@@ -1036,7 +1130,6 @@ export default function App() {
     }));
   };
 
-  // Audio File Upload & Waveform Extraction
   const handleAudioFileUpload = async (trackId: string, file: File) => {
     initAudioContext();
     const ctx = audioCtxRef.current;
@@ -1045,7 +1138,6 @@ export default function App() {
       const arrayBuffer = await file.arrayBuffer();
       const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
 
-      // Extract 64 representative peaks for real waveform rendering
       const rawData = audioBuffer.getChannelData(0);
       const samples = 64;
       const blockSize = Math.floor(rawData.length / samples);
@@ -1074,7 +1166,6 @@ export default function App() {
     }
   };
 
-  // Setlist Operations
   const loadSongFromSetlist = (song: SongPreset) => {
     setActiveSongId(song.id);
     setProjectName(song.name);
@@ -1121,7 +1212,6 @@ export default function App() {
     }
   };
 
-  // Export Setlist JSON
   const exportSetlistJson = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(setlist, null, 2));
     const dlAnchor = document.createElement('a');
@@ -1131,7 +1221,6 @@ export default function App() {
     showToast('Exported Setlist JSON file!');
   };
 
-  // Import Setlist JSON
   const importSetlistJson = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1151,7 +1240,6 @@ export default function App() {
     reader.readAsText(file);
   };
 
-  // Generate Ableton ALS XML
   const generateAbletonAlsXml = () => {
     const locatorsXml = enrichedSections.map((sec, idx) => {
       const beatTime = sec.startBar * beatsPerBar;
@@ -1175,7 +1263,7 @@ ${locatorsXml}
       </Locators>
     </Locators>
     <Tracks>
-${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute="${t.route}" Volume="${t.volume}" />`).join('\n')}
+${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute="${t.route}" Volume="${t.volume}" Pan="${t.pan}" />`).join('\n')}
     </Tracks>
   </LiveSet>
 </Ableton>`;
@@ -1360,73 +1448,73 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
   const selectedSectionObj = enrichedSections.find(s => s.id === selectedSectionId) || enrichedSections[0];
 
   return (
-    <div className="min-h-screen bg-[#0B0E14] text-slate-100 flex flex-col font-sans select-none overflow-x-hidden">
+    <div className="min-h-screen bg-[#080A0F] text-slate-200 flex flex-col font-sans select-none overflow-x-hidden">
       {/* ==========================================
           1. TOP TRANSPORT & STUDIO MASTER BAR
       ========================================== */}
-      <header className="bg-[#121722] border-b border-slate-800/90 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 z-30 shadow-lg">
+      <header className="bg-[#0F131C] border-b border-white/[0.06] px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 z-30 shadow-xl">
         {/* Brand & Project Name */}
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-md shadow-cyan-500/20">
-            <Layers className="w-5 h-5 text-white" />
+          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 border border-white/10 flex items-center justify-center shadow-md">
+            <Layers className="w-4 h-4 text-cyan-400" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
+              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-cyan-950/70 text-cyan-400 border border-cyan-800/40">
                 STAGE RIG PRO
               </span>
               <button
                 onClick={() => setShowSetlistModal(true)}
-                className="flex items-center gap-1 text-xs text-slate-400 hover:text-cyan-300 transition"
+                className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 transition"
                 title="Open Live Setlist"
               >
                 <ListMusic className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="font-semibold underline decoration-dotted">Setlist ({setlist.length} Songs)</span>
+                <span className="font-medium underline decoration-slate-600">Setlist ({setlist.length})</span>
               </button>
             </div>
             <input
               type="text"
               value={projectName}
               onChange={(e) => setProjectName(e.target.value)}
-              className="bg-transparent text-sm font-semibold text-white focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded px-1 -ml-1 w-56 sm:w-64"
+              className="bg-transparent text-sm font-semibold text-slate-100 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 rounded px-1 -ml-1 w-56 sm:w-64 tracking-tight"
             />
           </div>
         </div>
 
         {/* Transport Controls */}
-        <div className="flex items-center gap-1.5 bg-[#0B0E14] p-1.5 rounded-lg border border-slate-800">
+        <div className="flex items-center gap-1.5 bg-[#090C12] p-1 rounded-lg border border-white/[0.06] shadow-inner">
           <button
             onClick={handlePlayPause}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-md font-semibold text-xs transition-all ${
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-md font-bold text-xs transition-all ${
               isPlaying
-                ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/25'
-                : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-lg shadow-emerald-500/20'
+                ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20'
+                : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md shadow-emerald-500/20'
             }`}
           >
-            {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
+            {isPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current" />}
             <span>{isPlaying ? 'PAUSE' : 'PLAY'}</span>
           </button>
 
           <button
             onClick={handleStop}
-            className="p-1.5 rounded-md bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition"
+            className="p-1.5 rounded-md bg-slate-800/60 hover:bg-slate-700/80 text-slate-300 transition"
             title="Stop & Return to Bar 1 (Esc)"
           >
-            <Square className="w-4 h-4 fill-current" />
+            <Square className="w-3.5 h-3.5 fill-current" />
           </button>
 
           <button
             onClick={() => {
               const targetId = loopSectionId ? null : activeSectionInfo.current?.id;
               setLoopSectionId(targetId);
-              showToast(targetId ? `Looping: ${activeSectionInfo.current?.name}` : 'Vamp / Loop Disabled');
+              showToast(targetId ? `Vamp Active: ${activeSectionInfo.current?.name}` : 'Vamp Disabled');
             }}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition ${
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold transition ${
               loopSectionId
-                ? 'bg-purple-500/30 text-purple-300 border border-purple-500/60 shadow-sm shadow-purple-500/20 animate-pulse'
-                : 'bg-slate-800/60 hover:bg-slate-700 text-slate-400'
+                ? 'bg-purple-950/80 text-purple-300 border border-purple-500/40 shadow-sm animate-pulse'
+                : 'bg-slate-800/40 hover:bg-slate-700/60 text-slate-400'
             }`}
-            title="Vamp / Infinite Loop on Current Section (V key)"
+            title="Vamp / Infinite Section Loop (V key)"
           >
             <Repeat className="w-3.5 h-3.5" />
             <span className="hidden md:inline">{loopSectionId ? 'VAMP ON' : 'VAMP'}</span>
@@ -1434,47 +1522,47 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
 
           <button
             onClick={handleTapTempo}
-            className="px-2 py-1.5 rounded-md bg-slate-800/80 hover:bg-slate-700 text-amber-400 font-mono text-xs font-bold transition"
+            className="px-2 py-1.5 rounded-md bg-slate-800/50 hover:bg-slate-700/70 text-slate-300 font-mono text-xs font-semibold transition"
             title="Tap Tempo (T key)"
           >
             TAP
           </button>
         </div>
 
-        {/* LCD Counter & Tempo / Key Panel */}
-        <div className="flex items-center gap-2 bg-[#090C10] px-3 py-1.5 rounded-lg border border-slate-800/90 shadow-inner">
-          <div className="pr-3 border-r border-slate-800">
-            <div className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">BAR . BEAT . 16TH</div>
+        {/* Master LCD Time & Key Panel */}
+        <div className="flex items-center gap-2.5 bg-[#06080D] px-3 py-1.5 rounded-lg border border-white/[0.06] shadow-inner">
+          <div className="pr-3 border-r border-white/[0.06]">
+            <div className="text-[8px] uppercase tracking-wider text-slate-500 font-bold">BAR . BEAT . 16TH</div>
             <div className="font-mono text-sm sm:text-base font-bold text-cyan-400 tracking-tight">
               {formattedCounters.barBeat}
             </div>
           </div>
 
-          <div className="pr-3 border-r border-slate-800 hidden xl:block">
-            <div className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">TIMECODE / TOTAL</div>
-            <div className="font-mono text-sm font-semibold text-slate-200">
-              {formattedCounters.timecode} <span className="text-xs text-slate-500">/ {formattedCounters.totalDuration}</span>
+          <div className="pr-3 border-r border-white/[0.06] hidden xl:block">
+            <div className="text-[8px] uppercase tracking-wider text-slate-500 font-bold">TIMECODE / TOTAL</div>
+            <div className="font-mono text-xs font-semibold text-slate-300">
+              {formattedCounters.timecode} <span className="text-slate-600">/ {formattedCounters.totalDuration}</span>
             </div>
           </div>
 
-          <div className="pr-3 border-r border-slate-800 flex flex-col">
-            <span className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">TEMPO (BPM)</span>
+          <div className="pr-3 border-r border-white/[0.06] flex flex-col">
+            <span className="text-[8px] uppercase tracking-wider text-slate-500 font-bold">TEMPO (BPM)</span>
             <input
               type="number"
               min={60}
               max={200}
               value={bpm}
               onChange={(e) => setBpm(Math.max(60, Math.min(200, Number(e.target.value) || 120)))}
-              className="w-12 bg-slate-900 text-amber-400 font-mono text-sm font-bold px-1 rounded border border-slate-700 focus:outline-none"
+              className="w-12 bg-slate-900/90 text-amber-400 font-mono text-xs font-bold px-1 rounded border border-white/10 focus:outline-none"
             />
           </div>
 
-          <div className="pr-3 border-r border-slate-800 flex flex-col">
-            <span className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">METER</span>
+          <div className="pr-3 border-r border-white/[0.06] flex flex-col">
+            <span className="text-[8px] uppercase tracking-wider text-slate-500 font-bold">METER</span>
             <select
               value={timeSig}
               onChange={(e) => setTimeSig(e.target.value)}
-              className="bg-slate-900 text-slate-200 font-mono text-xs font-bold px-1.5 py-0.5 rounded border border-slate-700 focus:outline-none"
+              className="bg-slate-900/90 text-slate-200 font-mono text-xs font-bold px-1 py-0.5 rounded border border-white/10 focus:outline-none"
             >
               <option value="4/4">4/4</option>
               <option value="3/4">3/4</option>
@@ -1484,18 +1572,18 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
 
           <div className="flex items-center gap-2">
             <div>
-              <span className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold block">KEY</span>
+              <span className="text-[8px] uppercase tracking-wider text-slate-500 font-bold block">KEY</span>
               <select
                 value={musicalKey}
                 onChange={(e) => setMusicalKey(e.target.value)}
-                className="bg-slate-900 text-emerald-400 font-mono text-xs font-bold px-1.5 py-0.5 rounded border border-slate-700 focus:outline-none"
+                className="bg-slate-900/90 text-emerald-400 font-mono text-xs font-bold px-1.5 py-0.5 rounded border border-white/10 focus:outline-none"
               >
                 {KEY_SIGNATURES.map(k => <option key={k} value={k}>{k}</option>)}
               </select>
             </div>
             <div>
-              <span className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold block">PITCH (ST)</span>
-              <div className="flex items-center bg-slate-900 rounded border border-slate-700">
+              <span className="text-[8px] uppercase tracking-wider text-slate-500 font-bold block">PITCH (ST)</span>
+              <div className="flex items-center bg-slate-900/90 rounded border border-white/10">
                 <button
                   onClick={() => setPitchShift(p => Math.max(-6, p - 1))}
                   className="px-1.5 text-xs text-slate-400 hover:text-white"
@@ -1512,58 +1600,68 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
           </div>
         </div>
 
-        {/* Actions / Tools Bar */}
+        {/* Right Tools & Mode Switcher */}
         <div className="flex items-center gap-2">
+          {/* Split Stereo Preset */}
+          <button
+            onClick={applySplitStereoRouting}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-white/[0.08] text-xs font-medium transition"
+            title="Pan Click/Cues Left (In-Ear) & Stems Right (FOH)"
+          >
+            <Headphones className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden xl:inline">Split Stereo</span>
+          </button>
+
           {/* Printable Band Chart */}
           <button
             onClick={() => setShowChartModal(true)}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-white/[0.08] text-xs font-medium transition"
             title="View & Print Band Chart / Cue Sheet (Ctrl+P)"
           >
             <Printer className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden md:inline">Band Chart</span>
+            <span className="hidden md:inline">Chart</span>
           </button>
 
-          {/* MIDI Activity Pill */}
+          {/* MIDI Activity */}
           <button
             onClick={() => setShowMidiModal(true)}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition ${
               midiActivity
-                ? 'bg-emerald-500/30 text-emerald-300 border-emerald-400'
+                ? 'bg-emerald-950/70 text-emerald-300 border-emerald-500/50'
                 : midiConnectedDevice
-                ? 'bg-slate-800/80 text-slate-300 border-slate-700 hover:border-slate-600'
-                : 'bg-slate-900 text-slate-500 border-slate-800'
+                ? 'bg-slate-800/40 text-slate-300 border-white/[0.08]'
+                : 'bg-slate-900/60 text-slate-500 border-white/[0.05]'
             }`}
             title="MIDI Controller Settings & MIDI Learn"
           >
             <Piano className={`w-3.5 h-3.5 ${midiActivity ? 'text-emerald-400' : 'text-slate-400'}`} />
-            <span className="hidden lg:inline">{midiConnectedDevice ? 'MIDI Active' : 'MIDI'}</span>
+            <span className="hidden lg:inline">{midiConnectedDevice ? 'MIDI' : 'MIDI'}</span>
           </button>
 
-          {/* Keyboard Shortcuts Trigger */}
+          {/* Hotkeys */}
           <button
             onClick={() => setShowShortcutsModal(true)}
-            className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700"
+            className="p-1.5 rounded-lg bg-slate-800/40 hover:bg-slate-700/60 text-slate-400 hover:text-slate-200 border border-white/[0.08] transition"
             title="Stage Hotkeys"
           >
-            <Keyboard className="w-4 h-4" />
+            <Keyboard className="w-3.5 h-3.5" />
           </button>
 
-          {/* AI Stem Split Trigger */}
+          {/* AI Stem Split */}
           <button
             onClick={() => setShowAIModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-purple-600/30 to-indigo-600/30 hover:from-purple-600/50 hover:to-indigo-600/50 text-purple-200 border border-purple-500/40 transition shadow-sm"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-white/[0.08] transition"
           >
             <Sparkles className="w-3.5 h-3.5 text-purple-400" />
             <span className="hidden sm:inline">AI Stems</span>
           </button>
 
-          {/* View Switcher: Arrange vs Stage View */}
-          <div className="flex bg-[#0B0E14] p-0.5 rounded-lg border border-slate-800">
+          {/* View Toggle */}
+          <div className="flex bg-[#090C12] p-0.5 rounded-lg border border-white/[0.06]">
             <button
               onClick={() => setViewMode('ARRANGE')}
               className={`px-2.5 py-1 rounded-md text-xs font-semibold transition ${
-                viewMode === 'ARRANGE' ? 'bg-slate-800 text-cyan-400' : 'text-slate-400 hover:text-white'
+                viewMode === 'ARRANGE' ? 'bg-slate-800 text-slate-100 shadow' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
               Arrange
@@ -1571,57 +1669,75 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
             <button
               onClick={() => setViewMode('STAGE')}
               className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition ${
-                viewMode === 'STAGE' ? 'bg-cyan-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'
+                viewMode === 'STAGE' ? 'bg-cyan-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
               <Maximize2 className="w-3 h-3" />
-              <span>Stage / MD</span>
+              <span>Stage</span>
             </button>
           </div>
 
           <button
             onClick={() => setShowExportModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-cyan-500 hover:bg-cyan-400 text-slate-950 transition shadow-md shadow-cyan-500/15"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-cyan-600 hover:bg-cyan-500 text-white transition shadow-md shadow-cyan-600/20"
           >
             <Download className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Export Rig</span>
+            <span className="hidden sm:inline">Export</span>
           </button>
         </div>
       </header>
 
       {/* ==========================================
-          SUB-BAR: LIVE CUE TELEPROMPTER & CROSSFADE ENGINE
+          SUB-BAR: OLED STATUS & LIVE CUE TELEPROMPTER
       ========================================== */}
-      <div className="bg-[#10141D] border-b border-slate-800/80 px-4 py-2 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div className="bg-[#0B0E15] border-b border-white/[0.05] px-4 py-2 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-slate-900/90 px-2.5 py-1 rounded border border-slate-800">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-slate-400 font-medium">ACTIVE:</span>
+          <div className="flex items-center gap-2 bg-[#121622] px-2.5 py-1 rounded-md border border-white/[0.06]">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-slate-500 font-semibold text-[10px]">ACTIVE:</span>
             <span
               className="font-bold px-1.5 py-0.5 rounded text-[11px]"
-              style={{ backgroundColor: activeSectionInfo.current?.meta.bg, color: activeSectionInfo.current?.meta.border }}
+              style={{ backgroundColor: activeSectionInfo.current?.meta.bg, color: activeSectionInfo.current?.meta.color }}
             >
               {activeSectionInfo.current?.name} (Bar {activeSectionInfo.currentBarInSec}/{activeSectionInfo.current?.bars} • Beat {activeSectionInfo.currentBeatInBar})
             </span>
-            <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
-            <span className="text-slate-400">NEXT:</span>
-            <span className="font-semibold text-slate-200">
-              {loopSectionId ? `🔁 Looping ${activeSectionInfo.current?.name}` : (activeSectionInfo.next ? activeSectionInfo.next.name : 'End of Song')}
+            <ArrowRight className="w-3.5 h-3.5 text-slate-600" />
+            <span className="text-slate-500 font-semibold text-[10px]">NEXT:</span>
+            <span className="font-semibold text-slate-300">
+              {loopSectionId ? `🔁 Looping ${activeSectionInfo.current?.name}` : (activeSectionInfo.next ? activeSectionInfo.next.name : 'End')}
             </span>
           </div>
 
           {activeCueBanner && (
-            <div className="flex items-center gap-1.5 bg-sky-500/20 border border-sky-400/50 text-sky-300 px-3 py-1 rounded-full font-bold animate-bounce">
-              <Mic className="w-3.5 h-3.5" />
+            <div className="flex items-center gap-1.5 bg-sky-950/80 border border-sky-400/40 text-sky-200 px-3 py-1 rounded-full font-bold animate-bounce shadow-md">
+              <Mic className="w-3.5 h-3.5 text-sky-400" />
               <span>MD CUE: "{activeCueBanner}"</span>
             </div>
           )}
         </div>
 
+        {/* Metronome Sound & Utility Segmented Controls */}
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5">
-            <Sliders className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="text-slate-400">Slice Crossfade:</span>
+            <span className="text-slate-500 text-[11px]">Click:</span>
+            {(['WOODBLOCK', 'BEEP', 'RIMSHOT'] as const).map(sound => (
+              <button
+                key={sound}
+                onClick={() => setClickSound(sound)}
+                className={`px-2 py-0.5 rounded text-[10px] font-mono font-medium transition ${
+                  clickSound === sound
+                    ? 'bg-slate-800 text-slate-200 border border-white/10'
+                    : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                {sound}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <Sliders className="w-3 h-3 text-slate-500" />
+            <span className="text-slate-500 text-[11px]">Crossfade:</span>
             {[5, 15, 50].map((ms) => (
               <button
                 key={ms}
@@ -1629,10 +1745,10 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                   setCrossfadeMs(ms);
                   showToast(`Equal-power crossfade: ${ms}ms`);
                 }}
-                className={`px-2 py-0.5 rounded text-[11px] font-mono font-semibold transition ${
+                className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-medium transition ${
                   crossfadeMs === ms
-                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
-                    : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                    ? 'bg-slate-800 text-cyan-400 border border-white/10'
+                    : 'text-slate-500 hover:text-slate-300'
                 }`}
               >
                 {ms}ms
@@ -1643,42 +1759,46 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
           <button
             onClick={() => {
               setReverbTail(!reverbTail);
-              showToast(`Reverb Tail Spillover ${!reverbTail ? 'Enabled' : 'Disabled'}`);
+              showToast(`Reverb Spillover ${!reverbTail ? 'Enabled' : 'Disabled'}`);
             }}
-            className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] font-medium border transition ${
+            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border transition ${
               reverbTail
-                ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
-                : 'bg-slate-800/70 text-slate-500 border-slate-700'
+                ? 'bg-slate-800/80 text-emerald-400 border-emerald-500/30'
+                : 'text-slate-500 border-white/[0.06]'
             }`}
           >
             <Radio className="w-3 h-3" />
-            <span>Reverb Spillover: {reverbTail ? 'ON' : 'OFF'}</span>
+            <span>Spillover: {reverbTail ? 'ON' : 'OFF'}</span>
           </button>
         </div>
       </div>
 
       {/* ==========================================
-          MAIN WORKSPACE: ARRANGE VIEW VS STAGE MD VIEW
+          MAIN WORKSPACE: ARRANGE VIEW VS STAGE VIEW
       ========================================== */}
       {viewMode === 'STAGE' ? (
-        /* STAGE / MD PERFORMANCE VIEW */
-        <div className="flex-1 p-6 flex flex-col gap-6 bg-gradient-to-b from-[#0B0E14] to-[#0F1420]">
+        /* STAGE PERFORMANCE TELEPROMPTER VIEW */
+        <div className="flex-1 p-6 flex flex-col gap-6 bg-gradient-to-b from-[#080A0F] to-[#0D111A]">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Current Section Main Display */}
+            {/* Current Section Giant Card */}
             <div
-              className="lg:col-span-2 rounded-2xl p-6 border-2 flex flex-col justify-between relative overflow-hidden shadow-2xl"
+              className="lg:col-span-2 rounded-2xl p-6 border flex flex-col justify-between relative overflow-hidden shadow-2xl bg-[#0D121D]/90"
               style={{
-                backgroundColor: activeSectionInfo.current?.meta.bg,
                 borderColor: activeSectionInfo.current?.meta.border
               }}
             >
+              <div
+                className="absolute top-0 left-0 right-0 h-1"
+                style={{ backgroundColor: activeSectionInfo.current?.meta.color }}
+              />
+
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full bg-black/40 text-slate-200">
-                  NOW PLAYING SECTION {activeSectionInfo.current?.index + 1} OF {enrichedSections.length}
+                <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full bg-black/60 text-slate-300 border border-white/10">
+                  SECTION {activeSectionInfo.current?.index + 1} OF {enrichedSections.length}
                 </span>
                 {loopSectionId === activeSectionInfo.current?.id && (
-                  <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-purple-600 text-white animate-pulse">
-                    <Repeat className="w-3.5 h-3.5" /> VAMP / LOOP ACTIVE
+                  <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-purple-900/80 text-purple-200 border border-purple-400/50 animate-pulse">
+                    <Repeat className="w-3.5 h-3.5" /> VAMP ACTIVE
                   </span>
                 )}
               </div>
@@ -1688,39 +1808,38 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                   <h1 className="text-5xl sm:text-7xl font-black tracking-tight text-white">
                     {activeSectionInfo.current?.name}
                   </h1>
-                  <p className="text-sm text-slate-300 mt-2 font-medium">
+                  <p className="text-sm text-slate-400 mt-2 font-medium">
                     Key: <span className="text-emerald-400 font-bold">{musicalKey} ({pitchShift >= 0 ? `+${pitchShift}` : pitchShift} st)</span> • Tempo: <span className="text-amber-400 font-bold">{bpm} BPM</span>
                   </p>
                   {/* Band Chords Prompter */}
                   {activeSectionInfo.current?.chordsText && (
-                    <div className="mt-3 inline-block px-3 py-1.5 rounded-lg bg-black/50 border border-white/20">
-                      <span className="text-xs uppercase text-slate-400 font-semibold block">BAND CHORDS:</span>
+                    <div className="mt-3 inline-block px-3 py-1.5 rounded-lg bg-black/60 border border-white/10">
+                      <span className="text-[10px] uppercase text-slate-500 font-bold block">BAND CHORDS:</span>
                       <span className="text-xl sm:text-2xl font-mono font-bold text-amber-300">
                         {activeSectionInfo.current.chordsText}
                       </span>
                     </div>
                   )}
-                  {/* MD Performance Notes */}
                   {activeSectionInfo.current?.mdNotes && (
                     <p className="text-xs text-cyan-300 mt-2 font-mono">
-                      💡 MD Note: {activeSectionInfo.current.mdNotes}
+                      💡 Note: {activeSectionInfo.current.mdNotes}
                     </p>
                   )}
                 </div>
 
                 <div className="text-right font-mono">
-                  <div className="text-xs uppercase text-slate-300">BAR COUNTDOWN</div>
+                  <div className="text-[10px] uppercase text-slate-500 font-bold">BAR COUNTDOWN</div>
                   <div className="text-5xl sm:text-6xl font-black text-white">
-                    {activeSectionInfo.currentBarInSec} <span className="text-2xl text-slate-400">/ {activeSectionInfo.current?.bars}</span>
+                    {activeSectionInfo.currentBarInSec} <span className="text-2xl text-slate-500">/ {activeSectionInfo.current?.bars}</span>
                   </div>
-                  <div className="text-sm text-cyan-400 mt-1 font-bold">
+                  <div className="text-xs text-cyan-400 mt-1 font-bold">
                     Beat {activeSectionInfo.currentBeatInBar} of {beatsPerBar}
                   </div>
                 </div>
               </div>
 
               {/* Progress Bar */}
-              <div className="w-full h-5 bg-black/50 rounded-full overflow-hidden p-0.5 border border-white/10">
+              <div className="w-full h-3 bg-black/60 rounded-full overflow-hidden p-0.5 border border-white/10">
                 <div
                   className="h-full rounded-full transition-all duration-100"
                   style={{
@@ -1731,20 +1850,20 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
               </div>
             </div>
 
-            {/* Next Section & Spontaneous Controls */}
-            <div className="rounded-2xl bg-[#151A24] border border-slate-800 p-6 flex flex-col justify-between">
+            {/* Upcoming Section & Quick Actions */}
+            <div className="rounded-2xl bg-[#0F131C] border border-white/[0.06] p-6 flex flex-col justify-between shadow-xl">
               <div>
-                <span className="text-xs font-bold uppercase tracking-widest text-slate-400">UPCOMING SECTION</span>
-                <div className="mt-3 p-4 rounded-xl bg-[#0B0E14] border border-slate-800">
-                  <div className="text-2xl font-extrabold text-white">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">UPCOMING SECTION</span>
+                <div className="mt-3 p-4 rounded-xl bg-[#090C12] border border-white/[0.06]">
+                  <div className="text-2xl font-black text-slate-100">
                     {loopSectionId
                       ? `Repeating ${activeSectionInfo.current?.name}`
                       : activeSectionInfo.next
                       ? activeSectionInfo.next.name
-                      : 'End of Arrangement'}
+                      : 'End of Song'}
                   </div>
                   <div className="text-xs text-slate-400 mt-1">
-                    {activeSectionInfo.next ? `${activeSectionInfo.next.bars} Bars • Auto Voice Cue 1 Bar Prior` : 'Playback stops or loops to Intro'}
+                    {activeSectionInfo.next ? `${activeSectionInfo.next.bars} Bars • Voice Cue 1 Bar Prior` : 'Arrangement ends'}
                   </div>
                 </div>
               </div>
@@ -1757,25 +1876,25 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                   }}
                   className={`w-full py-3.5 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition ${
                     loopSectionId === activeSectionInfo.current?.id
-                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
-                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                      ? 'bg-purple-900/80 text-purple-200 border border-purple-400 shadow-lg'
+                      : 'bg-slate-800/60 hover:bg-slate-700/80 text-slate-200 border border-white/[0.06]'
                   }`}
                 >
                   <Repeat className="w-4 h-4" />
-                  <span>{loopSectionId === activeSectionInfo.current?.id ? 'EXIT SECTION VAMP' : 'VAMP / LOOP CURRENT SECTION'}</span>
+                  <span>{loopSectionId === activeSectionInfo.current?.id ? 'EXIT VAMP' : 'VAMP CURRENT SECTION'}</span>
                 </button>
 
                 <button
                   onClick={() => duplicateSection(activeSectionInfo.current)}
-                  className="w-full py-3 px-4 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-700 text-cyan-300 flex items-center justify-center gap-2 transition"
+                  className="w-full py-3 px-4 rounded-xl font-bold text-sm bg-slate-800/40 hover:bg-slate-700/60 text-cyan-300 border border-white/[0.06] flex items-center justify-center gap-2 transition"
                 >
                   <Copy className="w-4 h-4" />
-                  <span>EXTEND SECTION (+{activeSectionInfo.current?.bars} BARS)</span>
+                  <span>EXTEND (+{activeSectionInfo.current?.bars} BARS)</span>
                 </button>
               </div>
 
-              <div className="text-[11px] text-slate-400 flex items-center justify-between border-t border-slate-800 pt-3">
-                <span>Click Subdivision: {tracks.find(t => t.id === 'click')?.subdivision}</span>
+              <div className="text-[11px] text-slate-500 flex items-center justify-between border-t border-white/[0.06] pt-3">
+                <span>Metronome: {tracks.find(t => t.id === 'click')?.subdivision}</span>
                 <button
                   onClick={toggleClickSubdivision}
                   className="text-cyan-400 hover:underline font-semibold"
@@ -1788,8 +1907,8 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
 
           {/* Section Launch Pads */}
           <div>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
-              LIVE SECTION LAUNCH PADS (CLICK TO JUMP IMMEDIATELY ON BAR)
+            <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-3">
+              SECTION LAUNCH PADS (QUANTIZED JUMP ON BAR)
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
               {enrichedSections.map((sec) => {
@@ -1798,25 +1917,25 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                   <button
                     key={sec.id}
                     onClick={() => jumpToSection(sec)}
-                    className={`p-4 rounded-xl border text-left transition-all flex flex-col justify-between h-28 ${
+                    className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between h-24 relative overflow-hidden ${
                       isCurrent
-                        ? 'ring-2 ring-white scale-[1.02] shadow-lg'
-                        : 'opacity-80 hover:opacity-100'
+                        ? 'ring-2 ring-cyan-400 bg-[#161D2C] shadow-lg'
+                        : 'bg-[#0E131C] border-white/[0.06] hover:border-white/20'
                     }`}
-                    style={{
-                      backgroundColor: sec.meta.bg,
-                      borderColor: sec.meta.border
-                    }}
                   >
-                    <div className="flex items-center justify-between w-full">
-                      <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-black/40 text-white">
+                    <div
+                      className="absolute top-0 left-0 right-0 h-1"
+                      style={{ backgroundColor: sec.meta.color }}
+                    />
+                    <div className="flex items-center justify-between w-full mt-1">
+                      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-black/50 text-slate-300">
                         BAR {sec.startBar + 1}
                       </span>
-                      {loopSectionId === sec.id && <Repeat className="w-3.5 h-3.5 text-purple-300" />}
+                      {loopSectionId === sec.id && <Repeat className="w-3 h-3 text-purple-400" />}
                     </div>
                     <div>
-                      <div className="font-extrabold text-base text-white truncate">{sec.name}</div>
-                      <div className="text-xs text-slate-300 font-medium">{sec.bars} Bars</div>
+                      <div className="font-bold text-sm text-white truncate">{sec.name}</div>
+                      <div className="text-[11px] text-slate-400">{sec.bars} Bars</div>
                     </div>
                   </button>
                 );
@@ -1825,17 +1944,19 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
           </div>
         </div>
       ) : (
-        /* ARRANGE VIEW: MULTITRACK TIMELINE */
+        /* ==========================================
+           ARRANGE VIEW: MULTITRACK TIMELINE
+        ========================================== */
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Section Inspector Bar */}
           {selectedSectionObj && (
-            <div className="bg-[#141923] border-b border-slate-800 px-4 py-2 flex flex-wrap items-center justify-between gap-3">
+            <div className="bg-[#0F141F] border-b border-white/[0.06] px-4 py-2 flex flex-wrap items-center justify-between gap-3 text-xs">
               <div className="flex items-center gap-3">
                 <span
-                  className="w-3 h-3 rounded-sm"
+                  className="w-2.5 h-2.5 rounded-full"
                   style={{ backgroundColor: selectedSectionObj.meta.color }}
                 />
-                <span className="text-xs font-bold text-slate-300">SECTION:</span>
+                <span className="font-bold text-slate-400 text-[11px]">SECTION:</span>
                 <input
                   type="text"
                   value={selectedSectionObj.name}
@@ -1843,26 +1964,26 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                     const val = e.target.value;
                     setSections(prev => prev.map(s => s.id === selectedSectionObj.id ? { ...s, name: val } : s));
                   }}
-                  className="bg-slate-900 text-white text-xs font-bold px-2 py-1 rounded border border-slate-700 w-36"
+                  className="bg-slate-900 text-white font-bold px-2 py-1 rounded border border-white/10 w-36 focus:outline-none focus:border-cyan-500"
                 />
 
-                {/* Bars Adjuster */}
-                <div className="flex items-center gap-1 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 text-xs">
-                  <span className="text-slate-400">Length:</span>
+                {/* Length */}
+                <div className="flex items-center gap-1 bg-slate-900 px-2 py-0.5 rounded border border-white/10">
+                  <span className="text-slate-500">Bars:</span>
                   <button
                     onClick={() => updateSectionBars(selectedSectionObj.id, -2)}
-                    className="px-1.5 text-slate-400 hover:text-white font-bold"
+                    className="px-1 text-slate-400 hover:text-white font-bold"
                   >-</button>
-                  <span className="font-mono font-bold text-cyan-400">{selectedSectionObj.bars} Bars</span>
+                  <span className="font-mono font-bold text-slate-200">{selectedSectionObj.bars}</span>
                   <button
                     onClick={() => updateSectionBars(selectedSectionObj.id, 2)}
-                    className="px-1.5 text-slate-400 hover:text-white font-bold"
+                    className="px-1 text-slate-400 hover:text-white font-bold"
                   >+</button>
                 </div>
 
-                {/* Section Chords Field */}
-                <div className="flex items-center gap-1.5 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 text-xs">
-                  <span className="text-slate-400">Chords:</span>
+                {/* Chords */}
+                <div className="flex items-center gap-1.5 bg-slate-900 px-2 py-0.5 rounded border border-white/10">
+                  <span className="text-slate-500">Chords:</span>
                   <input
                     type="text"
                     value={selectedSectionObj.chordsText || ''}
@@ -1875,9 +1996,9 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                   />
                 </div>
 
-                {/* Section Custom Cue Field */}
-                <div className="flex items-center gap-1.5 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 text-xs hidden lg:flex">
-                  <span className="text-slate-400">MD Cue:</span>
+                {/* Custom Cue */}
+                <div className="flex items-center gap-1.5 bg-slate-900 px-2 py-0.5 rounded border border-white/10 hidden lg:flex">
+                  <span className="text-slate-500">MD Cue:</span>
                   <input
                     type="text"
                     value={selectedSectionObj.customCue || ''}
@@ -1891,19 +2012,19 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                 </div>
               </div>
 
-              {/* Stem Mask Matrix */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] text-slate-400 font-medium">Stems in "{selectedSectionObj.name}":</span>
+              {/* Active Stems in Selected Section */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] text-slate-500 font-medium">Stems:</span>
                 {['drums', 'bass', 'keys', 'guitar', 'vocals'].map((stemKey) => {
                   const active = selectedSectionObj.stemMask?.[stemKey] ?? true;
                   return (
                     <button
                       key={stemKey}
                       onClick={() => toggleSectionStemMask(selectedSectionObj.id, stemKey)}
-                      className={`px-2 py-0.5 rounded text-[11px] font-semibold uppercase transition border ${
+                      className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase transition border ${
                         active
-                          ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
-                          : 'bg-slate-900 text-slate-500 border-slate-800 line-through'
+                          ? 'bg-slate-800 text-slate-200 border-white/20'
+                          : 'bg-slate-950 text-slate-600 border-white/[0.04] line-through'
                       }`}
                     >
                       {stemKey}
@@ -1912,33 +2033,42 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                 })}
                 <button
                   onClick={() => setShowAddSectionModal(true)}
-                  className="ml-2 flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-semibold transition"
+                  className="ml-2 flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/10 text-xs font-semibold transition"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add Section</span>
+                  <Plus className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Section</span>
                 </button>
               </div>
             </div>
           )}
 
-          {/* Timeline and Track Rows */}
+          {/* Timeline Workspace */}
           <div className="flex-1 flex overflow-y-auto overflow-x-hidden">
-            {/* Left Track Headers */}
-            <div className="w-72 sm:w-80 shrink-0 bg-[#151A24] border-r border-slate-800 flex flex-col z-20">
-              <div className="h-24 px-3 border-b border-slate-800 flex flex-col justify-center bg-[#11161F]">
+            {/* Left Track Mixer Headers */}
+            <div className="w-72 sm:w-80 shrink-0 bg-[#0F141F] border-r border-white/[0.06] flex flex-col z-20">
+              <div className="h-24 px-3 border-b border-white/[0.06] flex flex-col justify-center bg-[#0C1018]">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                     STRUCTURE ({totalBars} BARS)
                   </span>
-                  <button
-                    onClick={() => setShowAddSectionModal(true)}
-                    className="text-[11px] text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-0.5"
-                  >
-                    <Plus className="w-3 h-3" /> Section
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={resetPanToCenter}
+                      className="text-[9px] text-slate-400 hover:text-white px-1.5 py-0.5 rounded bg-slate-800 border border-white/[0.06]"
+                      title="Reset Panning to Center"
+                    >
+                      Pan: C
+                    </button>
+                    <button
+                      onClick={() => setShowAddSectionModal(true)}
+                      className="text-[11px] text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-0.5"
+                    >
+                      <Plus className="w-3 h-3" /> Section
+                    </button>
+                  </div>
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1">
-                  Drag sections to reorder • Upload stems per track.
+                  Drag sections to reorder • Pan L/R for in-ear splits.
                 </p>
               </div>
 
@@ -1950,23 +2080,23 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                 return (
                   <div
                     key={track.id}
-                    className={`h-20 px-3 py-2 border-b border-slate-800/90 flex flex-col justify-between transition ${
-                      effectivelyMuted ? 'opacity-50 bg-[#10141C]' : 'bg-[#151A24]'
+                    className={`h-20 px-3 py-2 border-b border-white/[0.05] flex flex-col justify-between transition ${
+                      effectivelyMuted ? 'opacity-40 bg-[#0A0D14]' : 'bg-[#0F141F]'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-1">
                       <div className="flex items-center gap-2 min-w-0">
                         <span
-                          className="w-2.5 h-4 rounded-sm shrink-0"
+                          className="w-2.5 h-3.5 rounded-sm shrink-0"
                           style={{ backgroundColor: track.color }}
                         />
-                        <span className="font-bold text-xs text-slate-100 truncate">
+                        <span className="font-bold text-xs text-slate-200 truncate">
                           {track.name}
                         </span>
                         {track.id === 'click' && (
                           <button
                             onClick={toggleClickSubdivision}
-                            className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-mono text-cyan-400 border border-slate-700"
+                            className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] font-mono text-slate-300 border border-white/10"
                             title="Toggle Metronome Subdivision"
                           >
                             {track.subdivision}
@@ -1974,7 +2104,7 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                         )}
                         {track.category === 'STEM' && (
                           <label
-                            className="cursor-pointer text-slate-400 hover:text-cyan-300"
+                            className="cursor-pointer text-slate-500 hover:text-cyan-300 transition"
                             title={track.fileName ? `Loaded: ${track.fileName}` : 'Load WAV/MP3 stem file'}
                           >
                             <Upload className="w-3 h-3" />
@@ -1992,12 +2122,16 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                       </div>
 
                       <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-[9px] font-mono text-slate-500 px-1">
+                          {track.pan < -0.1 ? `L${Math.abs(Math.round(track.pan * 100))}` : track.pan > 0.1 ? `R${Math.round(track.pan * 100)}` : 'C'}
+                        </span>
+
                         <button
                           onClick={() => toggleMute(track.id)}
-                          className={`w-6 h-5 rounded text-[10px] font-black transition ${
+                          className={`w-6 h-5 rounded text-[10px] font-bold transition ${
                             track.muted
-                              ? 'bg-amber-500 text-slate-950'
-                              : 'bg-slate-800 text-slate-400 hover:text-white'
+                              ? 'bg-amber-500 text-slate-950 shadow-sm'
+                              : 'bg-slate-800/80 text-slate-400 hover:text-slate-200'
                           }`}
                           title="Mute Track"
                         >
@@ -2005,10 +2139,10 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                         </button>
                         <button
                           onClick={() => toggleSolo(track.id)}
-                          className={`w-6 h-5 rounded text-[10px] font-black transition ${
+                          className={`w-6 h-5 rounded text-[10px] font-bold transition ${
                             track.solo
-                              ? 'bg-cyan-400 text-slate-950'
-                              : 'bg-slate-800 text-slate-400 hover:text-white'
+                              ? 'bg-amber-400 text-slate-950 shadow-sm'
+                              : 'bg-slate-800/80 text-slate-400 hover:text-slate-200'
                           }`}
                           title="Solo Track"
                         >
@@ -2021,16 +2155,29 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                       <select
                         value={track.route}
                         onChange={(e) => changeRoute(track.id, e.target.value)}
-                        className="bg-[#0B0E14] text-slate-300 text-[10px] font-mono px-1.5 py-1 rounded border border-slate-800 focus:outline-none w-32 truncate"
-                        title="Hardware Interface Output Routing"
+                        className="bg-[#090C12] text-slate-400 text-[10px] font-mono px-1.5 py-1 rounded border border-white/[0.06] focus:outline-none w-28 truncate"
+                        title="Hardware Output Bus"
                       >
                         {OUTPUT_ROUTES.map(r => (
                           <option key={r} value={r}>{r}</option>
                         ))}
                       </select>
 
-                      <div className="flex items-center gap-1.5 flex-1">
-                        <Volume2 className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      {/* Pan Slider */}
+                      <input
+                        type="range"
+                        min="-1"
+                        max="1"
+                        step="0.05"
+                        value={track.pan}
+                        onChange={(e) => changePan(track.id, parseFloat(e.target.value))}
+                        className="w-12 h-1 bg-slate-800 rounded cursor-pointer"
+                        title={`Pan: ${track.pan}`}
+                      />
+
+                      {/* Volume Slider */}
+                      <div className="flex items-center gap-1 flex-1">
+                        <Volume2 className="w-3 h-3 text-slate-500 shrink-0" />
                         <input
                           type="range"
                           min="0"
@@ -2038,13 +2185,14 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                           step="0.01"
                           value={track.volume}
                           onChange={(e) => changeVolume(track.id, parseFloat(e.target.value))}
-                          className="w-full accent-cyan-400 h-1 bg-slate-800 rounded-lg cursor-pointer"
+                          className="w-full h-1 bg-slate-800 rounded cursor-pointer"
                         />
                       </div>
 
-                      <div className="w-2 h-6 bg-slate-900 rounded-sm overflow-hidden flex flex-col justify-end p-[1px] border border-slate-800">
+                      {/* VU Meter */}
+                      <div className="w-1.5 h-6 bg-slate-950 rounded-xs overflow-hidden flex flex-col justify-end border border-white/[0.05]">
                         <div
-                          className="w-full rounded-sm transition-all duration-75"
+                          className="w-full rounded-xs transition-all duration-75"
                           style={{
                             height: `${Math.min(100, meterVal * 100)}%`,
                             backgroundColor: meterVal > 0.85 ? '#F43F5E' : '#10B981'
@@ -2061,10 +2209,10 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
             <div
               ref={timelineContainerRef}
               onClick={handleTimelineScrub}
-              className="flex-1 bg-[#0B0E14] relative flex flex-col cursor-pointer overflow-x-auto"
+              className="flex-1 bg-[#080A0F] relative flex flex-col cursor-pointer overflow-x-auto"
             >
-              {/* Draggable Section Arrangement Blocks */}
-              <div className="h-24 border-b border-slate-800 flex w-full relative bg-[#0E131B]">
+              {/* Refined Section Arrangement Blocks */}
+              <div className="h-24 border-b border-white/[0.06] flex w-full relative bg-[#0C1018]">
                 {enrichedSections.map((sec, idx) => {
                   const widthPercent = (sec.bars / totalBars) * 100;
                   const isSelected = selectedSectionId === sec.id;
@@ -2083,42 +2231,47 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                       }}
                       style={{
                         width: `${widthPercent}%`,
-                        backgroundColor: sec.meta.bg,
-                        borderColor: isSelected ? '#FFFFFF' : sec.meta.border
+                        backgroundColor: isSelected ? 'rgba(255,255,255,0.04)' : sec.meta.bg
                       }}
-                      className={`h-full border-r-2 p-2 flex flex-col justify-between relative group transition-all select-none cursor-grab active:cursor-grabbing ${
-                        isSelected ? 'ring-1 ring-inset ring-white/80' : ''
+                      className={`h-full border-r border-white/[0.08] p-2 flex flex-col justify-between relative group transition-all select-none cursor-grab active:cursor-grabbing ${
+                        isSelected ? 'ring-1 ring-inset ring-cyan-400/80 bg-white/[0.03]' : ''
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-1 overflow-hidden">
+                      {/* Top colored accent indicator bar */}
+                      <div
+                        className="absolute top-0 left-0 right-0 h-[3px]"
+                        style={{ backgroundColor: sec.meta.color }}
+                      />
+
+                      <div className="flex items-start justify-between gap-1 overflow-hidden mt-0.5">
                         <div className="min-w-0">
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1.5">
                             <span
                               className="w-2 h-2 rounded-full shrink-0"
                               style={{ backgroundColor: sec.meta.color }}
                             />
-                            <span className="font-extrabold text-xs text-white truncate">
+                            <span className="font-bold text-xs text-slate-100 truncate">
                               {sec.name}
                             </span>
                           </div>
-                          <span className="text-[10px] font-mono text-slate-300 block">
-                            {sec.bars} Bars (Bar {sec.startBar + 1}–{sec.endBar})
+                          <span className="text-[10px] font-mono text-slate-400 block mt-0.5">
+                            {sec.bars} Bars ({sec.startBar + 1}–{sec.endBar})
                           </span>
                         </div>
 
                         {isPlayingSec && (
-                          <span className="px-1.5 py-0.5 rounded bg-black/50 text-[9px] font-mono font-bold text-emerald-400 shrink-0">
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-[9px] font-mono font-bold text-emerald-400 border border-emerald-500/30 shrink-0">
                             ACTIVE
                           </span>
                         )}
                       </div>
 
-                      <div className="flex items-center justify-between gap-1 pt-1 border-t border-white/10">
+                      <div className="flex items-center justify-between gap-1 pt-1 border-t border-white/[0.06]">
                         <div className="flex items-center gap-0.5">
                           <button
                             onClick={(e) => moveSection(idx, -1, e)}
                             disabled={idx === 0}
-                            className="p-1 rounded bg-black/40 hover:bg-black/70 text-slate-300 disabled:opacity-30"
+                            className="p-1 rounded bg-black/40 hover:bg-black/80 text-slate-400 hover:text-white disabled:opacity-20"
                             title="Move Left"
                           >
                             <ChevronLeft className="w-3 h-3" />
@@ -2126,7 +2279,7 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                           <button
                             onClick={(e) => moveSection(idx, 1, e)}
                             disabled={idx === enrichedSections.length - 1}
-                            className="p-1 rounded bg-black/40 hover:bg-black/70 text-slate-300 disabled:opacity-30"
+                            className="p-1 rounded bg-black/40 hover:bg-black/80 text-slate-400 hover:text-white disabled:opacity-20"
                             title="Move Right"
                           >
                             <ChevronRight className="w-3 h-3" />
@@ -2136,14 +2289,14 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                         <div className="flex items-center gap-1">
                           <button
                             onClick={(e) => splitSection(sec, e)}
-                            className="p-1 rounded bg-black/40 hover:bg-cyan-500 hover:text-slate-950 text-slate-200 transition"
+                            className="p-1 rounded bg-black/40 hover:bg-slate-700 text-slate-400 hover:text-white transition"
                             title="Split Section in Half"
                           >
                             <Split className="w-3 h-3" />
                           </button>
                           <button
                             onClick={(e) => duplicateSection(sec, e)}
-                            className="p-1 rounded bg-black/40 hover:bg-cyan-500 hover:text-slate-950 text-slate-200 transition"
+                            className="p-1 rounded bg-black/40 hover:bg-slate-700 text-slate-400 hover:text-white transition"
                             title="Duplicate Section"
                           >
                             <Copy className="w-3 h-3" />
@@ -2155,8 +2308,8 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                             }}
                             className={`p-1 rounded transition ${
                               loopSectionId === sec.id
-                                ? 'bg-purple-500 text-white'
-                                : 'bg-black/40 hover:bg-purple-500/40 text-slate-200'
+                                ? 'bg-purple-600 text-white'
+                                : 'bg-black/40 hover:bg-slate-700 text-slate-400'
                             }`}
                             title="Loop Section"
                           >
@@ -2164,7 +2317,7 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                           </button>
                           <button
                             onClick={(e) => deleteSection(sec.id, e)}
-                            className="p-1 rounded bg-black/40 hover:bg-rose-500 hover:text-white text-slate-300 transition"
+                            className="p-1 rounded bg-black/40 hover:bg-rose-500/80 hover:text-white text-slate-400 transition"
                             title="Delete Section"
                           >
                             <Trash2 className="w-3 h-3" />
@@ -2172,12 +2325,13 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                         </div>
                       </div>
 
+                      {/* Crossfade Boundary Marker */}
                       {idx > 0 && (
                         <div
-                          className="absolute top-0 -left-1.5 bottom-0 w-3 pointer-events-none flex items-center justify-center"
+                          className="absolute top-0 -left-1 bottom-0 w-2 pointer-events-none flex items-center justify-center"
                           title={`${crossfadeMs}ms Equal-Power Crossfade`}
                         >
-                          <div className="w-0.5 h-full bg-cyan-400/40" />
+                          <div className="w-[1px] h-full bg-cyan-400/30" />
                         </div>
                       )}
                     </div>
@@ -2185,7 +2339,7 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                 })}
               </div>
 
-              {/* 7 Track Waveform Rows */}
+              {/* 7 Track Waveform Rows on Clean Dark Canvas */}
               {tracks.map((track, trackIdx) => {
                 const anySolo = tracks.some(t => t.solo);
                 const effectivelyMuted = track.muted || (anySolo && !track.solo);
@@ -2193,8 +2347,8 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                 return (
                   <div
                     key={track.id}
-                    className={`h-20 border-b border-slate-800/80 flex w-full relative ${
-                      effectivelyMuted ? 'opacity-35' : ''
+                    className={`h-20 border-b border-white/[0.04] flex w-full relative ${
+                      effectivelyMuted ? 'opacity-30' : ''
                     }`}
                   >
                     {enrichedSections.map((sec, secIdx) => {
@@ -2206,16 +2360,11 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                         <div
                           key={`${track.id}-${sec.id}`}
                           style={{ width: `${widthPercent}%` }}
-                          className="h-full border-r border-slate-800/70 relative overflow-hidden p-1.5 flex items-center"
+                          className="h-full border-r border-white/[0.04] relative overflow-hidden p-1 flex items-center"
                         >
-                          <div
-                            className="absolute inset-0 pointer-events-none opacity-25"
-                            style={{ backgroundColor: sec.meta.bg }}
-                          />
-
-                          {/* CLICK TRACK */}
+                          {/* CLICK TRACK GRID */}
                           {track.id === 'click' && (
-                            <div className="w-full h-full flex items-center justify-between px-1 relative z-10">
+                            <div className="w-full h-full flex items-center justify-between px-2 relative z-10">
                               {Array.from({ length: sec.bars * 4 }).map((_, beatIdx) => {
                                 const isBarDownbeat = beatIdx % 4 === 0;
                                 return (
@@ -2224,10 +2373,10 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                                     className="flex flex-col items-center justify-center h-full"
                                   >
                                     <div
-                                      className={`w-[2px] rounded-full ${
+                                      className={`w-[1.5px] rounded-full ${
                                         isBarDownbeat
-                                          ? 'h-10 bg-slate-200'
-                                          : 'h-5 bg-slate-600'
+                                          ? 'h-8 bg-slate-300'
+                                          : 'h-4 bg-slate-700'
                                       }`}
                                     />
                                   </div>
@@ -2236,16 +2385,16 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                             </div>
                           )}
 
-                          {/* VOICE CUES */}
+                          {/* VOICE CUES TRACK */}
                           {track.id === 'cues' && (
                             <div className="w-full h-full flex items-center justify-between px-2 relative z-10">
-                              <span className="text-[10px] font-mono text-slate-500 truncate">
+                              <span className="text-[10px] font-mono text-slate-600 truncate">
                                 {sec.name}
                               </span>
                               {nextSec && (
                                 <div
-                                  className="px-2 py-1 rounded-md bg-sky-500/25 border border-sky-400/60 text-sky-300 text-[10px] font-bold flex items-center gap-1 shadow-sm shrink-0"
-                                  title={`MD Cue triggered at Bar ${sec.endBar}: "${nextSec.customCue || nextSec.name}, 2, 3, 4"`}
+                                  className="px-2 py-1 rounded-md bg-sky-950/70 border border-sky-400/30 text-sky-300 text-[10px] font-bold flex items-center gap-1 shadow-sm shrink-0"
+                                  title={`MD Cue at Bar ${sec.endBar}: "${nextSec.customCue || nextSec.name}, 2, 3, 4"`}
                                 >
                                   <Mic className="w-3 h-3 text-sky-400" />
                                   <span>"{nextSec.customCue || nextSec.name} • 2, 3, 4"</span>
@@ -2254,27 +2403,25 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                             </div>
                           )}
 
-                          {/* STEM TRACKS */}
+                          {/* STEM TRACKS - CLEAN MODERN WAVEFORMS */}
                           {track.category === 'STEM' && (
                             stemActive ? (
-                              <div className="w-full h-full rounded-md bg-[#090D14]/70 border border-white/10 px-1 flex items-center justify-between gap-[2px] relative z-10 overflow-hidden">
+                              <div className="w-full h-full rounded-md bg-[#0F1420]/70 border border-white/[0.06] px-1 flex items-center justify-between gap-[2px] relative z-10 overflow-hidden shadow-inner">
                                 <span
-                                  className="absolute top-1 left-1.5 text-[9px] font-mono font-bold px-1 rounded bg-black/60 z-20"
-                                  style={{ color: track.color }}
+                                  className="absolute top-1 left-1.5 text-[8.5px] font-mono font-medium px-1 rounded bg-black/60 z-20 text-slate-300 border border-white/[0.05]"
                                 >
-                                  {sec.name} • {track.id.toUpperCase()} {track.fileName ? `(${track.fileName})` : ''}
+                                  {sec.name} • {track.id.toUpperCase()}
                                 </span>
 
-                                {/* Waveform rendering: either from real uploaded audio buffer or procedural */}
                                 {Array.from({ length: Math.max(16, sec.bars * 6) }).map((_, barI) => {
                                   let heightPct = 50;
                                   if (track.waveformPeaks && track.waveformPeaks.length > 0) {
                                     const peakIdx = (barI * 3) % track.waveformPeaks.length;
-                                    heightPct = Math.max(12, track.waveformPeaks[peakIdx] * 95);
+                                    heightPct = Math.max(12, track.waveformPeaks[peakIdx] * 92);
                                   } else {
                                     const seed = (trackIdx + 1) * 1000 + sec.type.charCodeAt(0) * 37 + barI;
                                     const rand = pseudoRandom(seed);
-                                    heightPct = Math.max(14, Math.min(95, rand * 95 * sec.meta.intensity));
+                                    heightPct = Math.max(12, Math.min(92, rand * 92 * sec.meta.intensity));
                                   }
 
                                   return (
@@ -2284,16 +2431,16 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                                       style={{
                                         height: `${heightPct}%`,
                                         backgroundColor: track.color,
-                                        opacity: 0.78
+                                        opacity: 0.85
                                       }}
                                     />
                                   );
                                 })}
                               </div>
                             ) : (
-                              <div className="w-full h-full rounded-md border border-dashed border-slate-800 flex items-center justify-center z-10">
-                                <span className="text-[10px] text-slate-600 font-mono uppercase">
-                                  Stem Tacit / Muted in {sec.name}
+                              <div className="w-full h-full rounded-md bg-stripes-muted border border-white/[0.03] flex items-center justify-center z-10">
+                                <span className="text-[9px] text-slate-600 font-mono uppercase tracking-wider">
+                                  Tacit in {sec.name}
                                 </span>
                               </div>
                             )
@@ -2305,14 +2452,14 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                 );
               })}
 
-              {/* Master Playhead Line */}
+              {/* Master Playhead Needle */}
               <div
-                className="absolute top-0 bottom-0 w-[2px] bg-rose-500 pointer-events-none z-30 shadow-[0_0_12px_#F43F5E]"
+                className="absolute top-0 bottom-0 w-[2px] bg-cyan-400 pointer-events-none z-30 shadow-[0_0_10px_#22D3EE]"
                 style={{
                   left: `${(currentStep / Math.max(1, totalSteps)) * 100}%`
                 }}
               >
-                <div className="w-3.5 h-3.5 -ml-[6px] bg-rose-500 rotate-45 rounded-xs shadow" />
+                <div className="w-3 h-3 -ml-[5px] bg-cyan-400 rotate-45 rounded-xs shadow" />
               </div>
             </div>
           </div>
@@ -2320,12 +2467,12 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
       )}
 
       {/* ==========================================
-          MODAL: BAND CHART & CUE SHEET (PRINTABLE)
+          MODAL: BAND ROAD MAP & CUE SHEET
       ========================================== */}
       {showChartModal && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#151A24] border border-slate-700 rounded-2xl max-w-3xl w-full p-6 shadow-2xl max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+          <div className="bg-[#121622] border border-white/10 rounded-2xl max-w-3xl w-full p-6 shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 mb-4">
               <div className="flex items-center gap-2">
                 <Printer className="w-5 h-5 text-amber-400" />
                 <h3 className="text-base font-bold text-white">Band Road Map & Cue Sheet</h3>
@@ -2345,7 +2492,7 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-              <div className="p-4 rounded-xl bg-[#0B0E14] border border-slate-800 flex justify-between items-center">
+              <div className="p-4 rounded-xl bg-[#090C12] border border-white/[0.06] flex justify-between items-center">
                 <div>
                   <h2 className="text-xl font-black text-white">{projectName}</h2>
                   <div className="text-xs text-slate-400 mt-1 font-mono">
@@ -2357,7 +2504,6 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                 </div>
               </div>
 
-              {/* Section by Section Flow */}
               <div className="space-y-2">
                 {enrichedSections.map((sec, idx) => (
                   <div
@@ -2381,7 +2527,7 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                       <div className="text-sm font-bold text-amber-300">
                         Chords: {sec.chordsText || '—'}
                       </div>
-                      <div className="text-xs text-slate-300">
+                      <div className="text-xs text-slate-400">
                         {sec.mdNotes ? `Note: ${sec.mdNotes}` : ''}
                       </div>
                     </div>
@@ -2397,9 +2543,9 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
           MODAL: SETLIST MANAGER
       ========================================== */}
       {showSetlistModal && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#151A24] border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-[#121622] border border-white/10 rounded-2xl max-w-lg w-full p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 mb-4">
               <div className="flex items-center gap-2">
                 <ListMusic className="w-5 h-5 text-cyan-400" />
                 <h3 className="text-base font-bold text-white">Live Performance Setlist</h3>
@@ -2412,7 +2558,7 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
             <div className="flex items-center justify-between gap-2 mb-3">
               <button
                 onClick={addNewSongToSetlist}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-semibold"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Song</span>
@@ -2441,8 +2587,8 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                   onClick={() => loadSongFromSetlist(song)}
                   className={`p-3.5 rounded-xl border flex items-center justify-between cursor-pointer transition ${
                     activeSongId === song.id
-                      ? 'bg-cyan-500/20 border-cyan-500 text-white shadow-md'
-                      : 'bg-[#0B0E14] border-slate-800 text-slate-300 hover:border-slate-700'
+                      ? 'bg-cyan-950/40 border-cyan-500/60 text-white shadow-md'
+                      : 'bg-[#090C12] border-white/[0.06] text-slate-300 hover:border-white/20'
                   }`}
                 >
                   <div>
@@ -2455,9 +2601,9 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`text-xs font-bold px-2.5 py-1 rounded-md ${
-                      activeSongId === song.id ? 'bg-cyan-500 text-black' : 'bg-slate-800 text-slate-400'
+                      activeSongId === song.id ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-400'
                     }`}>
-                      {activeSongId === song.id ? 'LOADED' : 'LOAD'}
+                      {activeSongId === song.id ? 'ACTIVE' : 'LOAD'}
                     </span>
                     <button
                       onClick={(e) => deleteSongFromSetlist(song.id, e)}
@@ -2475,12 +2621,12 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
       )}
 
       {/* ==========================================
-          MODAL: MIDI SETTINGS & MIDI LEARN
+          MODAL: MIDI SETTINGS & LEARN
       ========================================== */}
       {showMidiModal && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#151A24] border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-[#121622] border border-white/10 rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 mb-4">
               <div className="flex items-center gap-2">
                 <Piano className="w-5 h-5 text-emerald-400" />
                 <h3 className="text-base font-bold text-white">Web MIDI Controller & MIDI Learn</h3>
@@ -2490,7 +2636,7 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
               </button>
             </div>
             <div className="space-y-4 text-xs">
-              <div className="p-3 rounded-xl bg-[#0B0E14] border border-slate-800 flex items-center justify-between">
+              <div className="p-3 rounded-xl bg-[#090C12] border border-white/[0.06] flex items-center justify-between">
                 <div>
                   <div className="font-semibold text-slate-200">Connected Device</div>
                   <div className="text-slate-400">{midiConnectedDevice || 'No USB/Bluetooth MIDI pedal detected'}</div>
@@ -2499,13 +2645,13 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
               </div>
 
               {midiLearningAction && (
-                <div className="p-3 rounded-xl bg-amber-500/20 border border-amber-500 text-amber-200 text-center font-bold animate-pulse">
+                <div className="p-3 rounded-xl bg-amber-500/20 border border-amber-500/50 text-amber-200 text-center font-bold animate-pulse">
                   Press any pad, foot switch, or key on your MIDI controller to map: {midiLearningAction.toUpperCase()}
                 </div>
               )}
 
               <div>
-                <span className="font-bold text-slate-300 block mb-2 uppercase tracking-wider text-[11px]">
+                <span className="font-bold text-slate-400 block mb-2 uppercase tracking-wider text-[10px]">
                   MIDI Stage Triggers (Click "Learn" then press foot switch):
                 </span>
                 <ul className="space-y-1.5 font-mono text-slate-300">
@@ -2517,14 +2663,14 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                     { key: 'vamp', label: 'VAMP / LOOP' },
                     { key: 'tapTempo', label: 'TAP TEMPO' },
                   ].map(({ key, label }) => (
-                    <li key={key} className="flex justify-between items-center p-2 rounded bg-[#090C10] border border-slate-800">
+                    <li key={key} className="flex justify-between items-center p-2 rounded bg-[#090C12] border border-white/[0.05]">
                       <span>{label}</span>
                       <div className="flex items-center gap-2">
                         <span className="text-cyan-400 font-bold">Note {midiMappings[key as keyof MidiMapping]}</span>
                         <button
                           onClick={() => setMidiLearningAction(key)}
                           className={`px-2 py-0.5 rounded text-[10px] font-bold transition ${
-                            midiLearningAction === key ? 'bg-amber-500 text-black' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                            midiLearningAction === key ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
                           }`}
                         >
                           {midiLearningAction === key ? 'LEARNING...' : 'LEARN'}
@@ -2543,9 +2689,9 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
           MODAL: KEYBOARD SHORTCUTS
       ========================================== */}
       {showShortcutsModal && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#151A24] border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-[#121622] border border-white/10 rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 mb-4">
               <div className="flex items-center gap-2">
                 <Keyboard className="w-5 h-5 text-cyan-400" />
                 <h3 className="text-base font-bold text-white">Stage Hotkeys & Shortcuts</h3>
@@ -2555,41 +2701,41 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
               </button>
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-              <div className="p-2.5 rounded bg-[#0B0E14] border border-slate-800 flex justify-between items-center">
+              <div className="p-2.5 rounded bg-[#090C12] border border-white/[0.06] flex justify-between items-center">
                 <span className="text-slate-300">Play / Pause</span>
                 <kbd className="px-2 py-0.5 rounded bg-slate-800 text-cyan-300 font-bold">Space</kbd>
               </div>
-              <div className="p-2.5 rounded bg-[#0B0E14] border border-slate-800 flex justify-between items-center">
+              <div className="p-2.5 rounded bg-[#090C12] border border-white/[0.06] flex justify-between items-center">
                 <span className="text-slate-300">Stop</span>
                 <kbd className="px-2 py-0.5 rounded bg-slate-800 text-cyan-300 font-bold">Esc</kbd>
               </div>
-              <div className="p-2.5 rounded bg-[#0B0E14] border border-slate-800 flex justify-between items-center">
+              <div className="p-2.5 rounded bg-[#090C12] border border-white/[0.06] flex justify-between items-center">
                 <span className="text-slate-300">Next Section</span>
                 <kbd className="px-2 py-0.5 rounded bg-slate-800 text-cyan-300 font-bold">→</kbd>
               </div>
-              <div className="p-2.5 rounded bg-[#0B0E14] border border-slate-800 flex justify-between items-center">
+              <div className="p-2.5 rounded bg-[#090C12] border border-white/[0.06] flex justify-between items-center">
                 <span className="text-slate-300">Prev Section</span>
                 <kbd className="px-2 py-0.5 rounded bg-slate-800 text-cyan-300 font-bold">←</kbd>
               </div>
-              <div className="p-2.5 rounded bg-[#0B0E14] border border-slate-800 flex justify-between items-center">
+              <div className="p-2.5 rounded bg-[#090C12] border border-white/[0.06] flex justify-between items-center">
                 <span className="text-slate-300">Vamp / Loop</span>
                 <kbd className="px-2 py-0.5 rounded bg-slate-800 text-purple-300 font-bold">V</kbd>
               </div>
-              <div className="p-2.5 rounded bg-[#0B0E14] border border-slate-800 flex justify-between items-center">
+              <div className="p-2.5 rounded bg-[#090C12] border border-white/[0.06] flex justify-between items-center">
                 <span className="text-slate-300">Tap Tempo</span>
                 <kbd className="px-2 py-0.5 rounded bg-slate-800 text-amber-300 font-bold">T</kbd>
               </div>
-              <div className="p-2.5 rounded bg-[#0B0E14] border border-slate-800 flex justify-between items-center">
+              <div className="p-2.5 rounded bg-[#090C12] border border-white/[0.06] flex justify-between items-center">
                 <span className="text-slate-300">Stage / Arrange</span>
                 <kbd className="px-2 py-0.5 rounded bg-slate-800 text-cyan-300 font-bold">F</kbd>
               </div>
-              <div className="p-2.5 rounded bg-[#0B0E14] border border-slate-800 flex justify-between items-center">
+              <div className="p-2.5 rounded bg-[#090C12] border border-white/[0.06] flex justify-between items-center">
                 <span className="text-slate-300">Band Chart</span>
                 <kbd className="px-2 py-0.5 rounded bg-slate-800 text-amber-300 font-bold">Ctrl+P</kbd>
               </div>
-              <div className="p-2.5 rounded bg-[#0B0E14] border border-slate-800 flex justify-between items-center col-span-2">
+              <div className="p-2.5 rounded bg-[#090C12] border border-white/[0.06] flex justify-between items-center col-span-2">
                 <span className="text-slate-300">Tempo +/-</span>
-                <kbd className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-bold">↑ / ↓ (Shift for +/- 5)</kbd>
+                <kbd className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-bold">↑ / ↓ (Shift: +/- 5)</kbd>
               </div>
             </div>
           </div>
@@ -2597,12 +2743,12 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
       )}
 
       {/* ==========================================
-          MODAL: AI STEM SEPARATOR SIMULATION
+          MODAL: AI STEM SEPARATOR
       ========================================== */}
       {showAIModal && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#151A24] border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-[#121622] border border-white/10 rounded-2xl max-w-lg w-full p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/[0.06] pb-4">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-lg bg-purple-500/20 text-purple-400">
                   <Sparkles className="w-5 h-5" />
@@ -2619,8 +2765,8 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
 
             {aiProcessingStep === 0 ? (
               <div className="my-6 space-y-4">
-                <label className="border-2 border-dashed border-slate-700 hover:border-purple-400 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition bg-[#0B0E14]/60">
-                  <Upload className="w-8 h-8 text-purple-400 mb-2" />
+                <label className="border-2 border-dashed border-white/15 hover:border-cyan-400 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition bg-[#090C12]">
+                  <Upload className="w-8 h-8 text-cyan-400 mb-2" />
                   <span className="text-sm font-semibold text-slate-200">
                     Drop a Stereo Master (.WAV, .MP3, .FLAC)
                   </span>
@@ -2656,7 +2802,7 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                   <span>Processing: {uploadedFileName}</span>
                   <span>{aiProcessingStep * 25}%</span>
                 </div>
-                <div className="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden">
+                <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-purple-500 to-cyan-400 transition-all duration-500"
                     style={{ width: `${aiProcessingStep * 25}%` }}
@@ -2690,11 +2836,11 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
 
       {/* ==========================================
           MODAL: ADD NEW SECTION
-      ========================================== */}
+      ========================================= */}
       {showAddSectionModal && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#151A24] border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-[#121622] border border-white/10 rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 mb-4">
               <h3 className="text-base font-bold text-white">Insert Arrangement Section</h3>
               <button onClick={() => setShowAddSectionModal(false)} className="text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
@@ -2708,8 +2854,8 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                   className="p-3 rounded-xl border text-left hover:scale-[1.02] transition flex flex-col justify-between"
                   style={{ backgroundColor: meta.bg, borderColor: meta.border }}
                 >
-                  <span className="font-extrabold text-sm text-white">{meta.label}</span>
-                  <span className="text-[11px] text-slate-300 mt-1">
+                  <span className="font-bold text-sm text-white">{meta.label}</span>
+                  <span className="text-[11px] text-slate-400 mt-1">
                     Default {meta.defaultBars} Bars
                   </span>
                 </button>
@@ -2723,9 +2869,9 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
           MODAL: EXPORT LIVE BUNDLE
       ========================================== */}
       {showExportModal && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#151A24] border border-slate-700 rounded-2xl max-w-2xl w-full p-6 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-[#121622] border border-white/10 rounded-2xl max-w-2xl w-full p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/[0.06] pb-4">
               <div>
                 <h2 className="text-base font-bold text-white">Export Stage-Ready Live Rig</h2>
                 <p className="text-xs text-slate-400">
@@ -2738,11 +2884,11 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
             </div>
 
             <div className="my-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="p-4 rounded-xl bg-[#0B0E14] border border-slate-800 flex flex-col justify-between">
+              <div className="p-4 rounded-xl bg-[#090C12] border border-white/[0.06] flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
                     <FileCode className="w-4 h-4" />
-                    <span>Ableton Live Set (.als)</span>
+                    <span>Ableton Live (.als)</span>
                   </div>
                   <p className="text-xs text-slate-400 mt-2">
                     Genuine gzip-compressed `.als` that opens directly in Ableton Live 10/11/12 with all {enrichedSections.length} Locators & tracks pre-mapped.
@@ -2757,7 +2903,7 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                 </button>
               </div>
 
-              <div className="p-4 rounded-xl bg-[#0B0E14] border border-slate-800 flex flex-col justify-between">
+              <div className="p-4 rounded-xl bg-[#090C12] border border-white/[0.06] flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-2 text-purple-400 font-bold text-sm">
                     <Music className="w-4 h-4" />
@@ -2776,7 +2922,7 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                 </button>
               </div>
 
-              <div className="p-4 rounded-xl bg-[#0B0E14] border border-slate-800 flex flex-col justify-between">
+              <div className="p-4 rounded-xl bg-[#090C12] border border-white/[0.06] flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-2 text-cyan-400 font-bold text-sm">
                     <FileAudio className="w-4 h-4" />
@@ -2797,10 +2943,10 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
             </div>
 
             <div>
-              <div className="text-[11px] font-mono uppercase text-slate-400 mb-1.5">
+              <div className="text-[10px] font-mono uppercase text-slate-500 mb-1.5">
                 GENERATED ABLETON &lt;LOCATORS&gt; MAP
               </div>
-              <pre className="bg-[#090C10] border border-slate-800 rounded-lg p-3 text-[11px] font-mono text-emerald-400 overflow-x-auto max-h-36">
+              <pre className="bg-[#090C12] border border-white/[0.06] rounded-lg p-3 text-[11px] font-mono text-emerald-400 overflow-x-auto max-h-36">
                 {generateAbletonAlsXml()}
               </pre>
             </div>
@@ -2809,7 +2955,7 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
       )}
 
       {toastMessage && (
-        <div className="fixed bottom-4 right-4 bg-slate-900 border border-cyan-500/50 text-slate-100 px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 text-xs font-semibold z-50 animate-fade-in">
+        <div className="fixed bottom-4 right-4 bg-slate-900 border border-white/20 text-slate-100 px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 text-xs font-semibold z-50 animate-fade-in">
           <Check className="w-4 h-4 text-cyan-400" />
           <span>{toastMessage}</span>
         </div>
