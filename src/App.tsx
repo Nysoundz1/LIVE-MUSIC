@@ -87,6 +87,14 @@ export interface StemMask {
   [key: string]: boolean;
 }
 
+export interface SectionAudioSlice {
+  startSec: number;
+  endSec: number;
+  durationSec: number;
+  peaks: number[];
+  audioBuffer?: AudioBuffer | null;
+}
+
 export interface SectionItem {
   id: string;
   type: string;
@@ -96,6 +104,7 @@ export interface SectionItem {
   chordsText?: string;
   mdNotes?: string;
   customCue?: string;
+  audioSlice?: SectionAudioSlice;
 }
 
 export interface TrackItem {
@@ -303,6 +312,172 @@ export function generateSectionsForAudio(
   return result;
 }
 
+export function splitAudioIntoArrangerSections(
+  sourceBuffer: AudioBuffer,
+  sectionsList: SectionItem[],
+  bpm: number,
+  beatsPerBar: number = 4
+): SectionItem[] {
+  const secondsPerBeat = 60.0 / bpm;
+  const secondsPerBar = secondsPerBeat * beatsPerBar;
+  const totalAudioDuration = sourceBuffer.duration;
+
+  let currentAccBars = 0;
+
+  return sectionsList.map((sec) => {
+    const startSec = currentAccBars * secondsPerBar;
+    const durationSec = sec.bars * secondsPerBar;
+    const endSec = Math.min(totalAudioDuration, startSec + durationSec);
+    currentAccBars += sec.bars;
+
+    const sampleRate = sourceBuffer.sampleRate;
+    const startSample = Math.max(0, Math.floor(startSec * sampleRate));
+    const endSample = Math.min(sourceBuffer.length, Math.floor(endSec * sampleRate));
+    const sliceLen = Math.max(1, endSample - startSample);
+
+    const channelData = sourceBuffer.getChannelData(0);
+    const slicePeaks: number[] = [];
+    const peakCount = Math.max(16, sec.bars * 4);
+    const bucketSize = Math.max(1, Math.floor(sliceLen / peakCount));
+
+    for (let b = 0; b < peakCount; b++) {
+      const bStart = startSample + b * bucketSize;
+      let max = 0;
+      const step = Math.max(1, Math.floor(bucketSize / 12));
+      for (let s = 0; s < bucketSize && (bStart + s) < sourceBuffer.length; s += step) {
+        const val = Math.abs(channelData[bStart + s]);
+        if (val > max) max = val;
+      }
+      slicePeaks.push(Math.min(1, max * 1.35));
+    }
+
+    return {
+      ...sec,
+      audioSlice: {
+        startSec,
+        endSec,
+        durationSec,
+        peaks: slicePeaks
+      }
+    };
+  });
+}
+
+export async function separateAudioIntoStems(
+  audioBuffer: AudioBuffer
+): Promise<Record<string, AudioBuffer>> {
+  const sampleRate = audioBuffer.sampleRate;
+  const length = audioBuffer.length;
+  const numChannels = audioBuffer.numberOfChannels;
+
+  // 1. Bass (< 240 Hz)
+  const bassCtx = new OfflineAudioContext(numChannels, length, sampleRate);
+  const bassSrc = bassCtx.createBufferSource();
+  bassSrc.buffer = audioBuffer;
+  const bassFilter = bassCtx.createBiquadFilter();
+  bassFilter.type = 'lowpass';
+  bassFilter.frequency.value = 240;
+  bassFilter.Q.value = 1.0;
+  bassSrc.connect(bassFilter);
+  bassFilter.connect(bassCtx.destination);
+  bassSrc.start(0);
+  const bassBuffer = await bassCtx.startRendering();
+
+  // 2. Drums (Sub punch < 120Hz + High snap > 4500Hz)
+  const drumCtx = new OfflineAudioContext(numChannels, length, sampleRate);
+  const drumSrc = drumCtx.createBufferSource();
+  drumSrc.buffer = audioBuffer;
+  const kickFilter = drumCtx.createBiquadFilter();
+  kickFilter.type = 'lowpass';
+  kickFilter.frequency.value = 120;
+  const hatFilter = drumCtx.createBiquadFilter();
+  hatFilter.type = 'highpass';
+  hatFilter.frequency.value = 4500;
+  const drumGain = drumCtx.createGain();
+  drumGain.gain.value = 1.25;
+  drumSrc.connect(kickFilter);
+  kickFilter.connect(drumGain);
+  drumSrc.connect(hatFilter);
+  hatFilter.connect(drumGain);
+  drumGain.connect(drumCtx.destination);
+  drumSrc.start(0);
+  const drumBuffer = await drumCtx.startRendering();
+
+  // 3. Keys & Pads (Bandpass 350Hz - 2500Hz)
+  const keysCtx = new OfflineAudioContext(numChannels, length, sampleRate);
+  const keysSrc = keysCtx.createBufferSource();
+  keysSrc.buffer = audioBuffer;
+  const keysFilter = keysCtx.createBiquadFilter();
+  keysFilter.type = 'bandpass';
+  keysFilter.frequency.value = 900;
+  keysFilter.Q.value = 0.7;
+  keysSrc.connect(keysFilter);
+  keysFilter.connect(keysCtx.destination);
+  keysSrc.start(0);
+  const keysBuffer = await keysCtx.startRendering();
+
+  // 4. Guitars (Highpass 400Hz + Peaking 2400Hz)
+  const gtrCtx = new OfflineAudioContext(numChannels, length, sampleRate);
+  const gtrSrc = gtrCtx.createBufferSource();
+  gtrSrc.buffer = audioBuffer;
+  const gtrHp = gtrCtx.createBiquadFilter();
+  gtrHp.type = 'highpass';
+  gtrHp.frequency.value = 400;
+  const gtrFilter = gtrCtx.createBiquadFilter();
+  gtrFilter.type = 'peaking';
+  gtrFilter.frequency.value = 2400;
+  gtrFilter.gain.value = 4.5;
+  gtrFilter.Q.value = 1.2;
+  gtrSrc.connect(gtrHp);
+  gtrHp.connect(gtrFilter);
+  gtrFilter.connect(gtrCtx.destination);
+  gtrSrc.start(0);
+  const gtrBuffer = await gtrCtx.startRendering();
+
+  // 5. Vocals (Bandpass 800Hz - 6000Hz)
+  const voxCtx = new OfflineAudioContext(numChannels, length, sampleRate);
+  const voxSrc = voxCtx.createBufferSource();
+  voxSrc.buffer = audioBuffer;
+  const voxFilter = voxCtx.createBiquadFilter();
+  voxFilter.type = 'bandpass';
+  voxFilter.frequency.value = 2500;
+  voxFilter.Q.value = 0.6;
+  const voxGain = voxCtx.createGain();
+  voxGain.gain.value = 1.35;
+  voxSrc.connect(voxFilter);
+  voxFilter.connect(voxGain);
+  voxGain.connect(voxCtx.destination);
+  voxSrc.start(0);
+  const voxBuffer = await voxCtx.startRendering();
+
+  return {
+    drums: drumBuffer,
+    bass: bassBuffer,
+    keys: keysBuffer,
+    guitar: gtrBuffer,
+    vocals: voxBuffer
+  };
+}
+
+export function extractBufferPeaks(audioBuffer: AudioBuffer, count: number = 32): number[] {
+  const channelData = audioBuffer.getChannelData(0);
+  const totalSamples = channelData.length;
+  const bucketSize = Math.max(1, Math.floor(totalSamples / count));
+  const peaks: number[] = [];
+
+  for (let b = 0; b < count; b++) {
+    const start = b * bucketSize;
+    let max = 0;
+    const step = Math.max(1, Math.floor(bucketSize / 16));
+    for (let s = 0; s < bucketSize && (start + s) < totalSamples; s += step) {
+      const val = Math.abs(channelData[start + s]);
+      if (val > max) max = val;
+    }
+    peaks.push(Math.min(1, max * 1.3));
+  }
+  return peaks;
+}
+
 const INITIAL_SECTIONS: SectionItem[] = [
   { id: 'sec-1', type: 'INTRO', name: 'Intro', bars: 4, stemMask: { drums: false, bass: true, keys: true, guitar: true, vocals: false }, chordsText: 'C - G - Am - F', mdNotes: 'Ambient keys & guitar swells', customCue: 'Intro In 4' },
   { id: 'sec-2', type: 'VERSE', name: 'Verse 1', bars: 8, stemMask: { drums: true, bass: true, keys: true, guitar: true, vocals: true }, chordsText: 'Am - F - C - G', mdNotes: 'Drums 4-on-the-floor, bass groove', customCue: 'Verse 1' },
@@ -442,6 +617,8 @@ export default function App() {
     peaks: number[];
     sections: SectionItem[];
     audioBuffer: AudioBuffer;
+    splitMode: 'CURRENT_ARRANGER' | 'DYNAMIC_SECTIONS';
+    separateStems: boolean;
   } | null>(null);
 
   // MIDI Controller State
@@ -630,7 +807,29 @@ export default function App() {
     const curStepsPerBar = curBeats * 4;
     const secondsPerBeat = 60.0 / bpmRef.current;
     const secondsPerBar = secondsPerBeat * curBeats;
-    const currentOffsetSec = (startStepIndex / curStepsPerBar) * secondsPerBar;
+
+    const rawSections = sectionsRef.current;
+    let accBars = 0;
+    let targetSec: SectionItem | null = null;
+    let secStartStep = 0;
+    for (let i = 0; i < rawSections.length; i++) {
+      const s = rawSections[i];
+      const sStart = accBars * curStepsPerBar;
+      const sEnd = (accBars + s.bars) * curStepsPerBar;
+      if (startStepIndex >= sStart && startStepIndex < sEnd) {
+        targetSec = s;
+        secStartStep = sStart;
+        break;
+      }
+      accBars += s.bars;
+    }
+
+    let currentOffsetSec = (startStepIndex / curStepsPerBar) * secondsPerBar;
+    if (targetSec && targetSec.audioSlice) {
+      const stepInSection = startStepIndex - secStartStep;
+      const timeInSection = (stepInSection / curStepsPerBar) * secondsPerBar;
+      currentOffsetSec = targetSec.audioSlice.startSec + timeInSection;
+    }
 
     const curTracks = tracksRef.current;
     curTracks.forEach(track => {
@@ -643,7 +842,8 @@ export default function App() {
 
         const gain = ctx.createGain();
         const anySolo = curTracks.some(t => t.solo);
-        const isAudible = !track.muted && (!anySolo || track.solo) && track.volume > 0.01;
+        const isStemActive = targetSec ? (targetSec.stemMask?.[track.id] ?? true) : true;
+        const isAudible = !track.muted && (!anySolo || track.solo) && track.volume > 0.01 && isStemActive;
         gain.gain.setValueAtTime(isAudible ? track.volume : 0, ctx.currentTime);
 
         const dest = masterCompressorRef.current || ctx.destination;
@@ -1019,9 +1219,14 @@ export default function App() {
 
         let accBars = 0;
         let loopedNextStep: number | null = null;
+        let isSectionBoundary = false;
+
         for (const s of sectionsRef.current) {
           const sStart = accBars * curStepsPerBar;
           const sEnd = (accBars + s.bars) * curStepsPerBar;
+          if (curStep + 1 === sStart) {
+            isSectionBoundary = true;
+          }
           if (loopSectionIdRef.current === s.id && curStep + 1 >= sEnd) {
             loopedNextStep = sStart;
             break;
@@ -1034,7 +1239,11 @@ export default function App() {
           stepRef.current = loopedNextStep;
           startTrackAudioBuffers(loopedNextStep);
         } else {
-          stepRef.current = (curStep + 1) % maxSteps;
+          const nextStep = (curStep + 1) % maxSteps;
+          stepRef.current = nextStep;
+          if (isSectionBoundary) {
+            startTrackAudioBuffers(nextStep);
+          }
         }
 
         nextStepTimeRef.current += secondsPer16th;
@@ -1257,18 +1466,50 @@ export default function App() {
     }
     const idx = sections.findIndex(s => s.id === sec.id);
     const halfBars = Math.floor(sec.bars / 2);
-    const secA: SectionItem = { ...sec, bars: halfBars, name: `${sec.name} Pt. 1` };
+    const remainingBars = sec.bars - halfBars;
+
+    let secASlice: SectionAudioSlice | undefined = undefined;
+    let secBSlice: SectionAudioSlice | undefined = undefined;
+
+    if (sec.audioSlice) {
+      const totalDur = sec.audioSlice.durationSec;
+      const halfDur = totalDur * (halfBars / sec.bars);
+      const splitTime = sec.audioSlice.startSec + halfDur;
+      const peaksA = sec.audioSlice.peaks.slice(0, Math.max(8, Math.floor(sec.audioSlice.peaks.length / 2)));
+      const peaksB = sec.audioSlice.peaks.slice(Math.max(8, Math.floor(sec.audioSlice.peaks.length / 2)));
+
+      secASlice = {
+        startSec: sec.audioSlice.startSec,
+        endSec: splitTime,
+        durationSec: halfDur,
+        peaks: peaksA
+      };
+      secBSlice = {
+        startSec: splitTime,
+        endSec: sec.audioSlice.endSec,
+        durationSec: totalDur - halfDur,
+        peaks: peaksB
+      };
+    }
+
+    const secA: SectionItem = {
+      ...sec,
+      bars: halfBars,
+      name: `${sec.name} Pt. 1`,
+      audioSlice: secASlice
+    };
     const secB: SectionItem = {
       ...sec,
       id: `sec-${Date.now()}`,
-      bars: sec.bars - halfBars,
+      bars: remainingBars,
       name: `${sec.name} Pt. 2`,
-      stemMask: { ...sec.stemMask }
+      stemMask: { ...sec.stemMask },
+      audioSlice: secBSlice
     };
     const updated = [...sections];
     updated.splice(idx, 1, secA, secB);
     setSections(updated);
-    showToast(`Split "${sec.name}" into two ${halfBars}-bar sections`);
+    showToast(`Split "${sec.name}" into two sections with audio slices`);
   };
 
   const moveSection = (idx: number, direction: number, e?: React.MouseEvent) => {
@@ -1464,6 +1705,46 @@ export default function App() {
     showToast(`Loaded "${song.name}"`);
   };
 
+  const splitActiveSongToArranger = async () => {
+    initAudioContext();
+    const audioTrack = tracks.find(t => t.id === 'master_audio' && t.audioBuffer) || tracks.find(t => t.audioBuffer);
+    if (!audioTrack || !audioTrack.audioBuffer) {
+      showToast('No imported audio song found. Please import a .WAV or .MP3 first.');
+      return;
+    }
+
+    showToast('Splitting imported song according to arranger structure...');
+    const curBeats = timeSig === '3/4' ? 3 : timeSig === '6/8' ? 6 : 4;
+    const slicedSections = splitAudioIntoArrangerSections(
+      audioTrack.audioBuffer,
+      sections,
+      bpm,
+      curBeats
+    );
+
+    setSections(slicedSections);
+
+    try {
+      const stems = await separateAudioIntoStems(audioTrack.audioBuffer);
+      setTracks(prev => prev.map(t => {
+        if (stems[t.id]) {
+          const stemPeaks = extractBufferPeaks(stems[t.id], 64);
+          return {
+            ...t,
+            audioBuffer: stems[t.id],
+            waveformPeaks: stemPeaks,
+            fileName: `${audioTrack.fileName || 'Song'} (${t.name})`
+          };
+        }
+        return t;
+      }));
+    } catch (err) {
+      console.warn('Stem separation background notice:', err);
+    }
+
+    showToast(`Split "${projectName}" into ${slicedSections.length} arranger sections & stem tracks!`);
+  };
+
   const handleProcessAudioFile = async (file: File) => {
     const isAudio = file.type.startsWith('audio/') || /\.(wav|mp3|m4a|flac|aac|ogg|aiff)$/i.test(file.name);
     if (!isAudio) {
@@ -1487,7 +1768,9 @@ export default function App() {
         .trim();
 
       const { bpm: detectedBpm, musicalKey: detectedKey, peaks } = detectBpmAndKeyFromAudio(file.name, audioBuffer, KEY_SIGNATURES);
-      const generatedSections = generateSectionsForAudio(audioBuffer.duration, detectedBpm, '4/4');
+
+      const curBeats = timeSig === '3/4' ? 3 : timeSig === '6/8' ? 6 : 4;
+      const arrangerSplit = splitAudioIntoArrangerSections(audioBuffer, sections, detectedBpm, curBeats);
 
       setPendingAudioImport({
         name: cleanName,
@@ -1495,10 +1778,12 @@ export default function App() {
         duration: audioBuffer.duration,
         bpm: detectedBpm,
         musicalKey: detectedKey,
-        timeSig: '4/4',
+        timeSig: timeSig || '4/4',
         peaks,
-        sections: generatedSections,
-        audioBuffer
+        sections: arrangerSplit,
+        audioBuffer,
+        splitMode: 'CURRENT_ARRANGER',
+        separateStems: true
       });
 
       setShowAudioImportModal(true);
@@ -1509,16 +1794,34 @@ export default function App() {
     }
   };
 
-  const confirmAudioSongImport = () => {
+  const confirmAudioSongImport = async () => {
     if (!pendingAudioImport) return;
 
-    const newSongId = `song-${Date.now()}`;
-    const finalSections = generateSectionsForAudio(
-      pendingAudioImport.duration,
-      pendingAudioImport.bpm,
-      pendingAudioImport.timeSig
-    );
+    const curBeats = pendingAudioImport.timeSig === '3/4' ? 3 : pendingAudioImport.timeSig === '6/8' ? 6 : 4;
+    let finalSections: SectionItem[];
 
+    if (pendingAudioImport.splitMode === 'CURRENT_ARRANGER') {
+      finalSections = splitAudioIntoArrangerSections(
+        pendingAudioImport.audioBuffer,
+        sections,
+        pendingAudioImport.bpm,
+        curBeats
+      );
+    } else {
+      const generated = generateSectionsForAudio(
+        pendingAudioImport.duration,
+        pendingAudioImport.bpm,
+        pendingAudioImport.timeSig
+      );
+      finalSections = splitAudioIntoArrangerSections(
+        pendingAudioImport.audioBuffer,
+        generated,
+        pendingAudioImport.bpm,
+        curBeats
+      );
+    }
+
+    const newSongId = `song-${Date.now()}`;
     const newSong: SongPreset = {
       id: newSongId,
       name: pendingAudioImport.name,
@@ -1537,9 +1840,31 @@ export default function App() {
     setSetlist(prev => [...prev, newSong]);
     loadSongFromSetlist(newSong);
 
+    if (pendingAudioImport.separateStems) {
+      showToast('Extracting stems (Drums, Bass, Keys, Guitars, Vocals)...');
+      try {
+        const stems = await separateAudioIntoStems(pendingAudioImport.audioBuffer);
+        setTracks(prev => prev.map(t => {
+          if (stems[t.id]) {
+            const stemPeaks = extractBufferPeaks(stems[t.id], 64);
+            return {
+              ...t,
+              audioBuffer: stems[t.id],
+              waveformPeaks: stemPeaks,
+              fileName: `${pendingAudioImport.fileName} (${t.name})`
+            };
+          }
+          return t;
+        }));
+        showToast(`Split into 5 stems & ${finalSections.length} arranger sections!`);
+      } catch (err) {
+        console.warn('Stem separation notice:', err);
+      }
+    }
+
     setShowAudioImportModal(false);
     setShowSetlistModal(false);
-    showToast(`Imported "${newSong.name}" from ${pendingAudioImport.fileName}!`);
+    showToast(`Imported "${newSong.name}" & split to ${finalSections.length} arranger sections!`);
   };
 
   const addNewSongToSetlist = () => {
@@ -1807,6 +2132,9 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
     setCurrentStep(targetStep);
     if (audioCtxRef.current) {
       nextStepTimeRef.current = audioCtxRef.current.currentTime;
+    }
+    if (isPlayingRef.current) {
+      startTrackAudioBuffers(targetStep);
     }
   };
 
@@ -2418,6 +2746,14 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                   </span>
                   <div className="flex items-center gap-1">
                     <button
+                      onClick={splitActiveSongToArranger}
+                      className="text-[9px] text-cyan-300 hover:text-white px-1.5 py-0.5 rounded bg-cyan-950/70 border border-cyan-500/40 flex items-center gap-1 font-semibold transition"
+                      title="Automatically split imported song into arranger sections & stems"
+                    >
+                      <Split className="w-2.5 h-2.5 text-cyan-400" />
+                      <span>Auto-Split</span>
+                    </button>
+                    <button
                       onClick={resetPanToCenter}
                       className="text-[9px] text-slate-400 hover:text-white px-1.5 py-0.5 rounded bg-slate-800 border border-white/[0.06]"
                       title="Reset Panning to Center"
@@ -2771,36 +3107,53 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                           {/* STEM TRACKS - CLEAN MODERN WAVEFORMS */}
                           {track.category === 'STEM' && (
                             stemActive ? (
-                              <div className="w-full h-full rounded-md bg-[#0F1420]/70 border border-white/[0.06] px-1 flex items-center justify-between gap-[2px] relative z-10 overflow-hidden shadow-inner">
-                                <span
-                                  className="absolute top-1 left-1.5 text-[8.5px] font-mono font-medium px-1 rounded bg-black/60 z-20 text-slate-300 border border-white/[0.05]"
-                                >
-                                  {sec.name} • {track.id.toUpperCase()}
-                                </span>
+                              <div className="w-full h-full rounded-md bg-[#0F1420]/70 border border-white/[0.06] px-1 flex items-center justify-between gap-[2px] relative z-10 overflow-hidden shadow-inner group">
+                                <div className="absolute top-1 left-1.5 flex items-center gap-1 z-20">
+                                  <span
+                                    className="text-[8.5px] font-mono font-medium px-1 rounded bg-black/60 text-slate-300 border border-white/[0.05]"
+                                  >
+                                    {sec.name} • {track.id.toUpperCase()}
+                                  </span>
+                                  {sec.audioSlice && (
+                                    <span className="text-[7.5px] font-mono px-1 rounded bg-cyan-950/80 text-cyan-300 border border-cyan-500/30 font-bold">
+                                      {formatDuration(sec.audioSlice.startSec)}–{formatDuration(sec.audioSlice.endSec)}
+                                    </span>
+                                  )}
+                                </div>
 
-                                {Array.from({ length: Math.max(16, sec.bars * 6) }).map((_, barI) => {
-                                  let heightPct = 50;
-                                  if (track.waveformPeaks && track.waveformPeaks.length > 0) {
-                                    const peakIdx = (barI * 3) % track.waveformPeaks.length;
-                                    heightPct = Math.max(12, track.waveformPeaks[peakIdx] * 92);
-                                  } else {
-                                    const seed = (trackIdx + 1) * 1000 + sec.type.charCodeAt(0) * 37 + barI;
-                                    const rand = pseudoRandom(seed);
-                                    heightPct = Math.max(12, Math.min(92, rand * 92 * sec.meta.intensity));
-                                  }
+                                {(() => {
+                                  const slicePeaks = sec.audioSlice?.peaks;
+                                  const barCount = Math.max(16, sec.bars * 6);
+                                  return Array.from({ length: barCount }).map((_, barI) => {
+                                    let heightPct = 50;
+                                    if (slicePeaks && slicePeaks.length > 0) {
+                                      const pIdx = Math.floor((barI / barCount) * slicePeaks.length);
+                                      heightPct = Math.max(12, (slicePeaks[pIdx] || 0.4) * 92);
+                                    } else if (track.waveformPeaks && track.waveformPeaks.length > 0) {
+                                      const secStartRatio = sec.startBar / Math.max(1, totalBars);
+                                      const secEndRatio = sec.endBar / Math.max(1, totalBars);
+                                      const globalRatio = secStartRatio + (barI / barCount) * (secEndRatio - secStartRatio);
+                                      const peakIdx = Math.floor(globalRatio * track.waveformPeaks.length) % track.waveformPeaks.length;
+                                      heightPct = Math.max(12, (track.waveformPeaks[peakIdx] || 0.4) * 92);
+                                    } else {
+                                      const seed = (trackIdx + 1) * 1000 + sec.type.charCodeAt(0) * 37 + barI;
+                                      const rand = pseudoRandom(seed);
+                                      heightPct = Math.max(12, Math.min(92, rand * 92 * sec.meta.intensity));
+                                    }
 
-                                  return (
-                                    <div
-                                      key={barI}
-                                      className="flex-1 rounded-full transition-all"
-                                      style={{
-                                        height: `${heightPct}%`,
-                                        backgroundColor: track.color,
-                                        opacity: 0.85
-                                      }}
-                                    />
-                                  );
-                                })}
+                                    return (
+                                      <div
+                                        key={barI}
+                                        className="flex-1 rounded-full transition-all"
+                                        style={{
+                                          height: `${heightPct}%`,
+                                          backgroundColor: track.color,
+                                          opacity: 0.85
+                                        }}
+                                      />
+                                    );
+                                  });
+                                })()}
                               </div>
                             ) : (
                               <div className="w-full h-full rounded-md bg-stripes-muted border border-white/[0.03] flex items-center justify-center z-10">
@@ -3156,21 +3509,90 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                 </div>
               </div>
 
-              {/* Generated Sections Preview */}
+              {/* Arranger Structure Slicing Mode */}
+              <div className="p-3.5 rounded-xl bg-[#090C12] border border-white/[0.06] space-y-2.5">
+                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-semibold flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Split className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Arranger Slicing Structure</span>
+                  </div>
+                  <span className="text-cyan-400 font-bold">{pendingAudioImport.splitMode === 'CURRENT_ARRANGER' ? 'Arranger Layout' : 'Dynamic Auto-Map'}</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPendingAudioImport({ ...pendingAudioImport, splitMode: 'CURRENT_ARRANGER' })}
+                    className={`p-2.5 rounded-lg border text-left transition ${
+                      pendingAudioImport.splitMode === 'CURRENT_ARRANGER'
+                        ? 'bg-cyan-950/60 border-cyan-400/80 text-white shadow-md'
+                        : 'bg-black/40 border-white/[0.06] text-slate-400 hover:border-white/20'
+                    }`}
+                  >
+                    <div className="text-xs font-bold flex items-center justify-between">
+                      <span>Split to Current Arranger</span>
+                      {pendingAudioImport.splitMode === 'CURRENT_ARRANGER' && <Check className="w-3.5 h-3.5 text-cyan-400" />}
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Slices audio into active {sections.length} sections ({totalBars} bars): {sections.map(s => s.name).slice(0, 3).join(', ')}...
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPendingAudioImport({ ...pendingAudioImport, splitMode: 'DYNAMIC_SECTIONS' })}
+                    className={`p-2.5 rounded-lg border text-left transition ${
+                      pendingAudioImport.splitMode === 'DYNAMIC_SECTIONS'
+                        ? 'bg-cyan-950/60 border-cyan-400/80 text-white shadow-md'
+                        : 'bg-black/40 border-white/[0.06] text-slate-400 hover:border-white/20'
+                    }`}
+                  >
+                    <div className="text-xs font-bold flex items-center justify-between">
+                      <span>Auto-Detect Sections</span>
+                      {pendingAudioImport.splitMode === 'DYNAMIC_SECTIONS' && <Check className="w-3.5 h-3.5 text-cyan-400" />}
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Builds new arrangement structure covering full {formatDuration(pendingAudioImport.duration)} duration.
+                    </p>
+                  </button>
+                </div>
+
+                <label className="flex items-center gap-2 pt-1 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={pendingAudioImport.separateStems}
+                    onChange={(e) => setPendingAudioImport({ ...pendingAudioImport, separateStems: e.target.checked })}
+                    className="rounded bg-slate-900 border-white/20 text-cyan-500 focus:ring-0"
+                  />
+                  <span className="text-xs font-medium text-slate-300">
+                    Auto-separate song into 5 Arranger Stems (Drums, Bass, Keys, Guitars, Vocals)
+                  </span>
+                </label>
+              </div>
+
+              {/* Arranger Sections & Slices Preview */}
               <div>
                 <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1.5">
-                  <span>Auto-Generated Sections</span>
+                  <span>Arranger Sections & Slices</span>
                   <span className="text-cyan-400 font-bold">
-                    {generateSectionsForAudio(pendingAudioImport.duration, pendingAudioImport.bpm, pendingAudioImport.timeSig).length} Sections
+                    {pendingAudioImport.splitMode === 'CURRENT_ARRANGER' ? sections.length : generateSectionsForAudio(pendingAudioImport.duration, pendingAudioImport.bpm, pendingAudioImport.timeSig).length} Sections
                   </span>
                 </div>
-                <div className="flex flex-wrap gap-1.5 p-2 rounded-xl bg-[#090C12] border border-white/[0.06] max-h-24 overflow-y-auto">
-                  {generateSectionsForAudio(pendingAudioImport.duration, pendingAudioImport.bpm, pendingAudioImport.timeSig).map((s, idx) => (
+                <div className="flex flex-wrap gap-1.5 p-2 rounded-xl bg-[#090C12] border border-white/[0.06] max-h-28 overflow-y-auto">
+                  {(pendingAudioImport.splitMode === 'CURRENT_ARRANGER'
+                    ? splitAudioIntoArrangerSections(pendingAudioImport.audioBuffer, sections, pendingAudioImport.bpm, pendingAudioImport.timeSig === '3/4' ? 3 : pendingAudioImport.timeSig === '6/8' ? 6 : 4)
+                    : splitAudioIntoArrangerSections(pendingAudioImport.audioBuffer, generateSectionsForAudio(pendingAudioImport.duration, pendingAudioImport.bpm, pendingAudioImport.timeSig), pendingAudioImport.bpm, 4)
+                  ).map((s, idx) => (
                     <span
                       key={idx}
-                      className="text-[10px] font-mono px-2 py-1 rounded-md bg-slate-800/80 border border-white/[0.06] text-slate-200"
+                      className="text-[10px] font-mono px-2 py-1 rounded-md bg-slate-800/80 border border-white/[0.06] text-slate-200 flex items-center gap-1.5"
                     >
-                      {s.name} ({s.bars}b)
+                      <span className="font-semibold">{s.name} ({s.bars}b)</span>
+                      {s.audioSlice && (
+                        <span className="text-cyan-400 font-bold text-[9px] bg-black/50 px-1 rounded">
+                          {formatDuration(s.audioSlice.startSec)}–{formatDuration(s.audioSlice.endSec)}
+                        </span>
+                      )}
                     </span>
                   ))}
                 </div>
