@@ -123,6 +123,11 @@ export interface SongPreset {
   musicalKey: string;
   pitchShift: number;
   sections: SectionItem[];
+  isCustomAudio?: boolean;
+  audioBuffer?: AudioBuffer | null;
+  audioFileName?: string;
+  audioDuration?: number;
+  audioPeaks?: number[];
 }
 
 export interface MidiMapping {
@@ -132,6 +137,170 @@ export interface MidiMapping {
   prevSec: number;
   vamp: number;
   tapTempo: number;
+}
+
+export function formatDuration(sec?: number): string {
+  if (!sec || isNaN(sec)) return '0:00';
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${s < 10 ? '0' : ''}${s}`;
+}
+
+export function detectBpmAndKeyFromAudio(
+  fileName: string,
+  audioBuffer: AudioBuffer,
+  keySignatures: string[]
+): { bpm: number; musicalKey: string; peaks: number[] } {
+  // 1. Check filename heuristics
+  const cleanName = fileName.replace(/\.[^/.]+$/, '');
+  const bpmRegex = /(?:^|[_\s-])(\d{2,3})\s*(?:bpm)?(?:[_\s-]|$)/i;
+  const bpmMatch = cleanName.match(bpmRegex);
+  let detectedBpm = bpmMatch ? parseInt(bpmMatch[1], 10) : 0;
+
+  // Key matching
+  const keyRegex = /\b([A-G][b#]?(?:m|maj|min)?)\b/i;
+  const keyMatch = cleanName.match(keyRegex);
+  let detectedKey = 'C Maj';
+  if (keyMatch) {
+    const rawKey = keyMatch[1];
+    const matchFound = keySignatures.find(k => k.toLowerCase().startsWith(rawKey.toLowerCase()));
+    if (matchFound) detectedKey = matchFound;
+  }
+
+  // 2. Compute audio peaks (128 sample points for visual waveform)
+  const channelData = audioBuffer.getChannelData(0);
+  const totalSamples = channelData.length;
+  const peakBuckets = 128;
+  const bucketSize = Math.max(1, Math.floor(totalSamples / peakBuckets));
+  const peaks: number[] = [];
+
+  for (let b = 0; b < peakBuckets; b++) {
+    const start = b * bucketSize;
+    let max = 0;
+    const step = Math.max(1, Math.floor(bucketSize / 24));
+    for (let s = 0; s < bucketSize && (start + s) < totalSamples; s += step) {
+      const val = Math.abs(channelData[start + s]);
+      if (val > max) max = val;
+    }
+    peaks.push(Math.min(1, max * 1.25));
+  }
+
+  // 3. If BPM not in filename, estimate from transient energy onsets
+  if (!detectedBpm || detectedBpm < 60 || detectedBpm > 200) {
+    const analyzeSeconds = Math.min(60, audioBuffer.duration);
+    const analyzeFrames = Math.floor(analyzeSeconds * audioBuffer.sampleRate);
+    const hopSize = Math.floor(audioBuffer.sampleRate * 0.02); // 20ms
+    const energies: number[] = [];
+    for (let f = 0; f < analyzeFrames; f += hopSize) {
+      let sum = 0;
+      const count = Math.min(hopSize, analyzeFrames - f);
+      for (let j = 0; j < count; j += 4) {
+        sum += channelData[f + j] * channelData[f + j];
+      }
+      energies.push(Math.sqrt(sum / Math.max(1, count / 4)));
+    }
+
+    const onsets: number[] = [];
+    for (let i = 2; i < energies.length - 2; i++) {
+      const localAvg = (energies[i - 2] + energies[i - 1] + energies[i + 1] + energies[i + 2]) / 4;
+      if (energies[i] > localAvg * 1.35 && energies[i] > 0.05) {
+        onsets.push(i * 0.02);
+      }
+    }
+
+    const bpmBins: Record<number, number> = {};
+    for (let i = 0; i < onsets.length; i++) {
+      for (let j = i + 1; j < Math.min(i + 6, onsets.length); j++) {
+        const delta = onsets[j] - onsets[i];
+        if (delta >= 0.35 && delta <= 0.9) {
+          let candidateBpm = Math.round(60 / delta);
+          if (candidateBpm < 70) candidateBpm *= 2;
+          if (candidateBpm > 150) candidateBpm = Math.round(candidateBpm / 2);
+          bpmBins[candidateBpm] = (bpmBins[candidateBpm] || 0) + 1;
+        }
+      }
+    }
+
+    let bestBpm = 120;
+    let maxCount = 0;
+    Object.entries(bpmBins).forEach(([bStr, count]) => {
+      const bNum = Number(bStr);
+      if (count > maxCount) {
+        maxCount = count;
+        bestBpm = bNum;
+      }
+    });
+
+    detectedBpm = bestBpm || 120;
+  }
+
+  return { bpm: detectedBpm, musicalKey: detectedKey, peaks };
+}
+
+export function generateSectionsForAudio(
+  durationSeconds: number,
+  bpm: number,
+  timeSig: string = '4/4'
+): SectionItem[] {
+  const beatsPerBar = timeSig === '3/4' ? 3 : timeSig === '6/8' ? 6 : 4;
+  const secondsPerBeat = 60 / bpm;
+  const secondsPerBar = secondsPerBeat * beatsPerBar;
+  const totalBars = Math.max(8, Math.round(durationSeconds / secondsPerBar));
+
+  const sectionDefs: { type: string; name: string; targetBars: number; chords: string; notes: string; customCue?: string }[] = [
+    { type: 'INTRO', name: 'Intro', targetBars: 4, chords: 'C - G - Am - F', notes: 'Ambient build', customCue: 'Intro In 4' },
+    { type: 'VERSE', name: 'Verse 1', targetBars: 8, chords: 'Am - F - C - G', notes: 'Light rhythm & groove', customCue: 'Verse 1' },
+    { type: 'CHORUS', name: 'Chorus 1', targetBars: 8, chords: 'F - C - G - Am', notes: 'Full band hook', customCue: 'Chorus 1' },
+    { type: 'VERSE', name: 'Verse 2', targetBars: 8, chords: 'Am - F - C - G', notes: 'Driving pulse', customCue: 'Verse 2' },
+    { type: 'CHORUS', name: 'Chorus 2', targetBars: 8, chords: 'F - C - G - Am', notes: 'Energy up', customCue: 'Chorus 2' },
+    { type: 'BRIDGE', name: 'Bridge', targetBars: 8, chords: 'Dm - Am - G - F', notes: 'Dynamic crescendo', customCue: 'Bridge' },
+    { type: 'CHORUS', name: 'Chorus 3 (Big)', targetBars: 8, chords: 'F - C - G - Am', notes: 'Maximum intensity', customCue: 'Big Chorus' },
+    { type: 'OUTRO', name: 'Outro', targetBars: 4, chords: 'C - G - Am - F', notes: 'Final ring out & cue', customCue: 'Outro' },
+  ];
+
+  let remainingBars = totalBars;
+  const result: SectionItem[] = [];
+
+  for (let i = 0; i < sectionDefs.length && remainingBars > 0; i++) {
+    const def = sectionDefs[i];
+    const isLast = i === sectionDefs.length - 1;
+    const barsForThis = isLast ? remainingBars : Math.min(remainingBars, def.targetBars);
+    if (barsForThis <= 0) break;
+
+    result.push({
+      id: `sec-imported-${Date.now()}-${i}`,
+      type: def.type,
+      name: def.name,
+      bars: barsForThis,
+      stemMask: {
+        drums: def.type !== 'INTRO',
+        bass: true,
+        keys: true,
+        guitar: true,
+        vocals: def.type !== 'INTRO'
+      },
+      chordsText: def.chords,
+      mdNotes: def.notes,
+      customCue: def.customCue
+    });
+
+    remainingBars -= barsForThis;
+  }
+
+  if (remainingBars > 0) {
+    result.push({
+      id: `sec-imported-${Date.now()}-extra`,
+      type: 'OUTRO',
+      name: 'Outro / Tag',
+      bars: remainingBars,
+      stemMask: { drums: false, bass: true, keys: true, guitar: true, vocals: false },
+      chordsText: 'C - G - Am - F',
+      mdNotes: 'Fade out / tag',
+      customCue: 'Outro Tag'
+    });
+  }
+
+  return result;
 }
 
 const INITIAL_SECTIONS: SectionItem[] = [
@@ -260,6 +429,21 @@ export default function App() {
   const [showChartModal, setShowChartModal] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Audio Song Library Import State
+  const [showAudioImportModal, setShowAudioImportModal] = useState(false);
+  const [isDraggingAudio, setIsDraggingAudio] = useState(false);
+  const [pendingAudioImport, setPendingAudioImport] = useState<{
+    name: string;
+    fileName: string;
+    duration: number;
+    bpm: number;
+    musicalKey: string;
+    timeSig: string;
+    peaks: number[];
+    sections: SectionItem[];
+    audioBuffer: AudioBuffer;
+  } | null>(null);
+
   // MIDI Controller State
   const [midiSupported, setMidiSupported] = useState(false);
   const [midiConnectedDevice, setMidiConnectedDevice] = useState<string | null>(null);
@@ -294,6 +478,11 @@ export default function App() {
   const lookaheadTimerRef = useRef<number | null>(null);
   const midiMappingsRef = useRef(midiMappings);
   const midiLearningActionRef = useRef(midiLearningAction);
+
+  // Active audio buffer playback sources & gain/pan nodes
+  const activeAudioSourcesRef = useRef<Map<string, AudioBufferSourceNode>>(new Map());
+  const audioGainNodesRef = useRef<Map<string, GainNode>>(new Map());
+  const audioPanNodesRef = useRef<Map<string, StereoPannerNode>>(new Map());
 
   useEffect(() => { sectionsRef.current = sections; }, [sections]);
   useEffect(() => { tracksRef.current = tracks; }, [tracks]);
@@ -418,6 +607,67 @@ export default function App() {
   const getTrack = (trackId: string, allTracks: TrackItem[]) => {
     return allTracks.find(tr => tr.id === trackId);
   };
+
+  const stopTrackAudioBuffers = useCallback(() => {
+    activeAudioSourcesRef.current.forEach(source => {
+      try {
+        source.stop();
+        source.disconnect();
+      } catch {}
+    });
+    activeAudioSourcesRef.current.clear();
+    audioGainNodesRef.current.clear();
+    audioPanNodesRef.current.clear();
+  }, []);
+
+  const startTrackAudioBuffers = useCallback((startStepIndex: number) => {
+    const ctx = audioCtxRef.current;
+    if (!ctx) return;
+
+    stopTrackAudioBuffers();
+
+    const curBeats = timeSigRef.current === '3/4' ? 3 : timeSigRef.current === '6/8' ? 6 : 4;
+    const curStepsPerBar = curBeats * 4;
+    const secondsPerBeat = 60.0 / bpmRef.current;
+    const secondsPerBar = secondsPerBeat * curBeats;
+    const currentOffsetSec = (startStepIndex / curStepsPerBar) * secondsPerBar;
+
+    const curTracks = tracksRef.current;
+    curTracks.forEach(track => {
+      if (!track.audioBuffer) return;
+      if (currentOffsetSec >= track.audioBuffer.duration) return;
+
+      try {
+        const source = ctx.createBufferSource();
+        source.buffer = track.audioBuffer;
+
+        const gain = ctx.createGain();
+        const anySolo = curTracks.some(t => t.solo);
+        const isAudible = !track.muted && (!anySolo || track.solo) && track.volume > 0.01;
+        gain.gain.setValueAtTime(isAudible ? track.volume : 0, ctx.currentTime);
+
+        const dest = masterCompressorRef.current || ctx.destination;
+
+        if (ctx.createStereoPanner) {
+          const panner = ctx.createStereoPanner();
+          panner.pan.setValueAtTime(Math.max(-1, Math.min(1, track.pan || 0)), ctx.currentTime);
+          source.connect(gain);
+          gain.connect(panner);
+          panner.connect(dest);
+          audioPanNodesRef.current.set(track.id, panner);
+        } else {
+          source.connect(gain);
+          gain.connect(dest);
+        }
+
+        audioGainNodesRef.current.set(track.id, gain);
+        source.start(ctx.currentTime + 0.03, Math.max(0, currentOffsetSec));
+        activeAudioSourcesRef.current.set(track.id, source);
+      } catch (err) {
+        console.warn('Could not start audio buffer for track', track.id, err);
+      }
+    });
+  }, [stopTrackAudioBuffers]);
 
   const triggerVoiceCue = useCallback((cueText: string, vol: number, targetTime?: number) => {
     setActiveCueBanner(cueText);
@@ -782,6 +1032,7 @@ export default function App() {
         const maxSteps = Math.max(1, accBars * curStepsPerBar);
         if (loopedNextStep !== null) {
           stepRef.current = loopedNextStep;
+          startTrackAudioBuffers(loopedNextStep);
         } else {
           stepRef.current = (curStep + 1) % maxSteps;
         }
@@ -794,25 +1045,28 @@ export default function App() {
     return () => {
       if (lookaheadTimerRef.current) window.clearInterval(lookaheadTimerRef.current);
     };
-  }, [isPlaying, scheduleAudioStep]);
+  }, [isPlaying, scheduleAudioStep, startTrackAudioBuffers]);
 
   const handlePlayPause = useCallback(() => {
     initAudioContext();
     if (isPlayingRef.current) {
       setIsPlaying(false);
+      stopTrackAudioBuffers();
       if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     } else {
       setIsPlaying(true);
+      startTrackAudioBuffers(stepRef.current);
     }
-  }, [initAudioContext]);
+  }, [initAudioContext, startTrackAudioBuffers, stopTrackAudioBuffers]);
 
   const handleStop = useCallback(() => {
     setIsPlaying(false);
+    stopTrackAudioBuffers();
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     stepRef.current = 0;
     setCurrentStep(0);
     setTrackMeters({});
-  }, []);
+  }, [stopTrackAudioBuffers]);
 
   const jumpToSection = useCallback((sec: SectionItem & { startStep: number }) => {
     initAudioContext();
@@ -823,9 +1077,10 @@ export default function App() {
       nextStepTimeRef.current = audioCtxRef.current.currentTime;
     }
     if (isPlayingRef.current) {
+      startTrackAudioBuffers(sec.startStep);
       triggerVoiceCue(`Jumping to ${sec.name}`, 0.9);
     }
-  }, [initAudioContext, triggerVoiceCue]);
+  }, [initAudioContext, startTrackAudioBuffers, triggerVoiceCue]);
 
   const jumpToNextSection = useCallback(() => {
     if (activeSectionInfo.next) {
@@ -1167,6 +1422,7 @@ export default function App() {
   };
 
   const loadSongFromSetlist = (song: SongPreset) => {
+    stopTrackAudioBuffers();
     setActiveSongId(song.id);
     setProjectName(song.name);
     setBpm(song.bpm);
@@ -1178,7 +1434,112 @@ export default function App() {
     stepRef.current = 0;
     setCurrentStep(0);
     setShowSetlistModal(false);
+
+    if (song.isCustomAudio && song.audioBuffer) {
+      setTracks(prev => {
+        const withoutOldMaster = prev.filter(t => t.id !== 'master_audio');
+        const masterTrack: TrackItem = {
+          id: 'master_audio',
+          name: `AUDIO: ${song.name}`,
+          category: 'STEM',
+          color: '#06B6D4',
+          route: 'Out 1-2 (Main FOH)',
+          volume: 0.88,
+          pan: 0,
+          muted: false,
+          solo: false,
+          audioBuffer: song.audioBuffer,
+          fileName: song.audioFileName,
+          waveformPeaks: song.audioPeaks
+        };
+        const clickTrack = withoutOldMaster.find(t => t.id === 'click') || INITIAL_TRACKS[0];
+        const cuesTrack = withoutOldMaster.find(t => t.id === 'cues') || INITIAL_TRACKS[1];
+        const rest = withoutOldMaster.filter(t => t.id !== 'click' && t.id !== 'cues');
+        return [clickTrack, cuesTrack, masterTrack, ...rest];
+      });
+    } else {
+      setTracks(prev => prev.filter(t => t.id !== 'master_audio'));
+    }
+
     showToast(`Loaded "${song.name}"`);
+  };
+
+  const handleProcessAudioFile = async (file: File) => {
+    const isAudio = file.type.startsWith('audio/') || /\.(wav|mp3|m4a|flac|aac|ogg|aiff)$/i.test(file.name);
+    if (!isAudio) {
+      showToast('Please select a valid .WAV or .MP3 audio file.');
+      return;
+    }
+
+    initAudioContext();
+    const ctx = audioCtxRef.current;
+    if (!ctx) return;
+
+    showToast(`Analyzing "${file.name}"...`);
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+
+      const cleanName = file.name
+        .replace(/\.[^/.]+$/, '')
+        .replace(/[_-]+/g, ' ')
+        .trim();
+
+      const { bpm: detectedBpm, musicalKey: detectedKey, peaks } = detectBpmAndKeyFromAudio(file.name, audioBuffer, KEY_SIGNATURES);
+      const generatedSections = generateSectionsForAudio(audioBuffer.duration, detectedBpm, '4/4');
+
+      setPendingAudioImport({
+        name: cleanName,
+        fileName: file.name,
+        duration: audioBuffer.duration,
+        bpm: detectedBpm,
+        musicalKey: detectedKey,
+        timeSig: '4/4',
+        peaks,
+        sections: generatedSections,
+        audioBuffer
+      });
+
+      setShowAudioImportModal(true);
+      showToast(`Audio decoded (${Math.round(audioBuffer.duration)}s • ${detectedBpm} BPM)`);
+    } catch (err) {
+      console.error('Audio decode error:', err);
+      showToast('Error decoding audio. Please try another .WAV or .MP3 file.');
+    }
+  };
+
+  const confirmAudioSongImport = () => {
+    if (!pendingAudioImport) return;
+
+    const newSongId = `song-${Date.now()}`;
+    const finalSections = generateSectionsForAudio(
+      pendingAudioImport.duration,
+      pendingAudioImport.bpm,
+      pendingAudioImport.timeSig
+    );
+
+    const newSong: SongPreset = {
+      id: newSongId,
+      name: pendingAudioImport.name,
+      bpm: pendingAudioImport.bpm,
+      timeSig: pendingAudioImport.timeSig,
+      musicalKey: pendingAudioImport.musicalKey,
+      pitchShift: 0,
+      sections: finalSections,
+      isCustomAudio: true,
+      audioBuffer: pendingAudioImport.audioBuffer,
+      audioFileName: pendingAudioImport.fileName,
+      audioDuration: pendingAudioImport.duration,
+      audioPeaks: pendingAudioImport.peaks
+    };
+
+    setSetlist(prev => [...prev, newSong]);
+    loadSongFromSetlist(newSong);
+
+    setShowAudioImportModal(false);
+    setShowSetlistModal(false);
+    showToast(`Imported "${newSong.name}" from ${pendingAudioImport.fileName}!`);
   };
 
   const addNewSongToSetlist = () => {
@@ -1213,7 +1574,11 @@ export default function App() {
   };
 
   const exportSetlistJson = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(setlist, null, 2));
+    const serializableSetlist = setlist.map(s => {
+      const { audioBuffer, ...rest } = s;
+      return rest;
+    });
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(serializableSetlist, null, 2));
     const dlAnchor = document.createElement('a');
     dlAnchor.setAttribute("href", dataStr);
     dlAnchor.setAttribute("download", "Live_Stage_Rig_Setlist.json");
@@ -2555,14 +2920,30 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
               </button>
             </div>
 
-            <div className="flex items-center justify-between gap-2 mb-3">
-              <button
-                onClick={addNewSongToSetlist}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Song</span>
-              </button>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={addNewSongToSetlist}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Song</span>
+                </button>
+
+                <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold cursor-pointer shadow-md shadow-cyan-600/20 transition">
+                  <Music className="w-3.5 h-3.5" />
+                  <span>Import Audio (.WAV / .MP3)</span>
+                  <input
+                    type="file"
+                    accept="audio/wav,audio/mp3,audio/mpeg,audio/flac,audio/aac,audio/ogg,.wav,.mp3,.flac,.aac,.ogg,audio/*"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleProcessAudioFile(f);
+                    }}
+                    className="hidden"
+                  />
+                </label>
+              </div>
 
               <div className="flex items-center gap-2">
                 <button
@@ -2580,6 +2961,47 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
               </div>
             </div>
 
+            {/* Drag & Drop Audio Zone */}
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDraggingAudio(true);
+              }}
+              onDragLeave={() => setIsDraggingAudio(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDraggingAudio(false);
+                const file = e.dataTransfer.files?.[0];
+                if (file) handleProcessAudioFile(file);
+              }}
+              className={`border-2 border-dashed rounded-xl p-3 mb-3 text-center transition ${
+                isDraggingAudio
+                  ? 'border-cyan-400 bg-cyan-950/40 text-cyan-200'
+                  : 'border-white/10 hover:border-cyan-500/40 bg-[#090C12] text-slate-400 hover:text-slate-300'
+              }`}
+            >
+              <label className="cursor-pointer flex items-center justify-center gap-2.5">
+                <Upload className="w-4 h-4 text-cyan-400 shrink-0" />
+                <div className="text-left">
+                  <span className="text-xs font-semibold text-slate-200 block">
+                    Import Songs From Your Audio Library
+                  </span>
+                  <span className="text-[11px] text-slate-400 block">
+                    Drop <strong className="text-cyan-400">.WAV</strong> or <strong className="text-cyan-400">.MP3</strong> files here to auto-detect tempo, key & map arrangement sections
+                  </span>
+                </div>
+                <input
+                  type="file"
+                  accept="audio/wav,audio/mp3,audio/mpeg,audio/flac,audio/aac,audio/ogg,.wav,.mp3,.flac,.aac,.ogg,audio/*"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleProcessAudioFile(f);
+                  }}
+                  className="hidden"
+                />
+              </label>
+            </div>
+
             <div className="space-y-2.5 max-h-80 overflow-y-auto">
               {setlist.map((song, i) => (
                 <div
@@ -2592,11 +3014,18 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                   }`}
                 >
                   <div>
-                    <div className="font-bold text-sm text-white">
-                      {i + 1}. {song.name}
+                    <div className="font-bold text-sm text-white flex items-center gap-2">
+                      <span>{i + 1}. {song.name}</span>
+                      {song.isCustomAudio && (
+                        <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 flex items-center gap-1">
+                          <Disc className="w-2.5 h-2.5 text-cyan-400" />
+                          {song.audioFileName?.split('.').pop()?.toUpperCase() || 'AUDIO'}
+                        </span>
+                      )}
                     </div>
                     <div className="text-xs text-slate-400 mt-1">
                       {song.bpm} BPM • {song.musicalKey} • {song.timeSig} • {song.sections.length} Sections
+                      {song.audioDuration ? ` • ${formatDuration(song.audioDuration)}` : ''}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -2615,6 +3044,155 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================
+          MODAL: IMPORT AUDIO SONG REVIEW & PREVIEW
+      ========================================== */}
+      {showAudioImportModal && pendingAudioImport && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-[#121622] border border-cyan-500/30 rounded-2xl max-w-xl w-full p-6 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 mb-4">
+              <div className="flex items-center gap-2">
+                <Music className="w-5 h-5 text-cyan-400" />
+                <h3 className="text-base font-bold text-white">Import Song From Audio Library</h3>
+              </div>
+              <button
+                onClick={() => setShowAudioImportModal(false)}
+                className="text-slate-400 hover:text-white transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Audio File Summary Card */}
+              <div className="p-3.5 rounded-xl bg-[#090C12] border border-white/[0.06] flex items-center justify-between">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-lg bg-cyan-950/70 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0">
+                    <FileAudio className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-mono text-slate-400 truncate max-w-sm">{pendingAudioImport.fileName}</div>
+                    <div className="text-sm font-bold text-white flex items-center gap-2 mt-0.5">
+                      <span>Duration: {formatDuration(pendingAudioImport.duration)}</span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold uppercase">
+                        {pendingAudioImport.fileName.split('.').pop() || 'AUDIO'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Waveform Mini Display */}
+              <div className="h-16 rounded-xl bg-[#080A0F] border border-white/[0.06] p-2 flex items-center justify-between gap-[2px] overflow-hidden">
+                {pendingAudioImport.peaks.map((p, i) => (
+                  <div
+                    key={i}
+                    className="w-full bg-cyan-400/80 rounded-full transition-all"
+                    style={{ height: `${Math.max(12, p * 100)}%` }}
+                  />
+                ))}
+              </div>
+
+              {/* Form Inputs */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
+                  <label className="text-[10px] font-mono uppercase tracking-wider text-slate-400 block mb-1">
+                    Song Title
+                  </label>
+                  <input
+                    type="text"
+                    value={pendingAudioImport.name}
+                    onChange={(e) => setPendingAudioImport({ ...pendingAudioImport, name: e.target.value })}
+                    className="w-full bg-[#090C12] border border-white/10 rounded-lg px-3 py-2 text-sm font-semibold text-white focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-mono uppercase tracking-wider text-slate-400 block mb-1">
+                    Tempo (BPM)
+                  </label>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setPendingAudioImport({ ...pendingAudioImport, bpm: Math.max(50, pendingAudioImport.bpm - 1) })}
+                      className="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold"
+                    >
+                      -1
+                    </button>
+                    <input
+                      type="number"
+                      value={pendingAudioImport.bpm}
+                      onChange={(e) => setPendingAudioImport({ ...pendingAudioImport, bpm: parseInt(e.target.value, 10) || 120 })}
+                      className="w-full text-center bg-[#090C12] border border-white/10 rounded-lg px-2 py-2 text-sm font-mono font-bold text-amber-400 focus:outline-none focus:border-cyan-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setPendingAudioImport({ ...pendingAudioImport, bpm: Math.min(220, pendingAudioImport.bpm + 1) })}
+                      className="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold"
+                    >
+                      +1
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-mono uppercase tracking-wider text-slate-400 block mb-1">
+                    Musical Key
+                  </label>
+                  <select
+                    value={pendingAudioImport.musicalKey}
+                    onChange={(e) => setPendingAudioImport({ ...pendingAudioImport, musicalKey: e.target.value })}
+                    className="w-full bg-[#090C12] border border-white/10 rounded-lg px-3 py-2 text-sm font-semibold text-emerald-400 focus:outline-none focus:border-cyan-500"
+                  >
+                    {KEY_SIGNATURES.map(k => (
+                      <option key={k} value={k} className="bg-slate-900 text-white">{k}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Generated Sections Preview */}
+              <div>
+                <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1.5">
+                  <span>Auto-Generated Sections</span>
+                  <span className="text-cyan-400 font-bold">
+                    {generateSectionsForAudio(pendingAudioImport.duration, pendingAudioImport.bpm, pendingAudioImport.timeSig).length} Sections
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 p-2 rounded-xl bg-[#090C12] border border-white/[0.06] max-h-24 overflow-y-auto">
+                  {generateSectionsForAudio(pendingAudioImport.duration, pendingAudioImport.bpm, pendingAudioImport.timeSig).map((s, idx) => (
+                    <span
+                      key={idx}
+                      className="text-[10px] font-mono px-2 py-1 rounded-md bg-slate-800/80 border border-white/[0.06] text-slate-200"
+                    >
+                      {s.name} ({s.bars}b)
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-white/[0.06]">
+              <button
+                type="button"
+                onClick={() => setShowAudioImportModal(false)}
+                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmAudioSongImport}
+                className="flex items-center gap-2 px-5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-lg shadow-cyan-600/30 transition"
+              >
+                <Check className="w-4 h-4" />
+                <span>Import to Setlist & Open</span>
+              </button>
             </div>
           </div>
         </div>
