@@ -137,6 +137,9 @@ export interface SongPreset {
   audioFileName?: string;
   audioDuration?: number;
   audioPeaks?: number[];
+  downbeatOffsetSec?: number;
+  stems?: Record<string, AudioBuffer>;
+  stemPeaks?: Record<string, number[]>;
 }
 
 export interface MidiMapping {
@@ -159,7 +162,7 @@ export function detectBpmAndKeyFromAudio(
   fileName: string,
   audioBuffer: AudioBuffer,
   keySignatures: string[]
-): { bpm: number; musicalKey: string; peaks: number[] } {
+): { bpm: number; musicalKey: string; peaks: number[]; downbeatOffsetSec: number; detectedTimeSig: string } {
   // 1. Check filename heuristics
   const cleanName = fileName.replace(/\.[^/.]+$/, '');
   const bpmRegex = /(?:^|[_\s-])(\d{2,3})\s*(?:bpm)?(?:[_\s-]|$)/i;
@@ -174,6 +177,14 @@ export function detectBpmAndKeyFromAudio(
     const rawKey = keyMatch[1];
     const matchFound = keySignatures.find(k => k.toLowerCase().startsWith(rawKey.toLowerCase()));
     if (matchFound) detectedKey = matchFound;
+  }
+
+  // Time signature heuristic
+  let detectedTimeSig = '4/4';
+  if (/6[_-]?8|6\/8/i.test(cleanName)) {
+    detectedTimeSig = '6/8';
+  } else if (/3[_-]?4|3\/4|waltz/i.test(cleanName)) {
+    detectedTimeSig = '3/4';
   }
 
   // 2. Compute audio peaks (128 sample points for visual waveform)
@@ -194,29 +205,39 @@ export function detectBpmAndKeyFromAudio(
     peaks.push(Math.min(1, max * 1.25));
   }
 
-  // 3. If BPM not in filename, estimate from transient energy onsets
+  // 3. Transient energy onsets & downbeat alignment detection
+  const analyzeSeconds = Math.min(60, audioBuffer.duration);
+  const analyzeFrames = Math.floor(analyzeSeconds * audioBuffer.sampleRate);
+  const hopSize = Math.floor(audioBuffer.sampleRate * 0.02); // 20ms
+  const energies: number[] = [];
+  for (let f = 0; f < analyzeFrames; f += hopSize) {
+    let sum = 0;
+    const count = Math.min(hopSize, analyzeFrames - f);
+    for (let j = 0; j < count; j += 4) {
+      sum += channelData[f + j] * channelData[f + j];
+    }
+    energies.push(Math.sqrt(sum / Math.max(1, count / 4)));
+  }
+
+  const onsets: number[] = [];
+  for (let i = 2; i < energies.length - 2; i++) {
+    const localAvg = (energies[i - 2] + energies[i - 1] + energies[i + 1] + energies[i + 2]) / 4;
+    if (energies[i] > localAvg * 1.35 && energies[i] > 0.04) {
+      onsets.push(i * 0.02);
+    }
+  }
+
+  // Detect downbeat phase offset (first strong downbeat transient in the first 4 seconds)
+  let downbeatOffsetSec = 0;
+  if (onsets.length > 0) {
+    const firstStrongOnset = onsets.find(t => t >= 0.02 && t <= 3.8);
+    if (firstStrongOnset !== undefined) {
+      downbeatOffsetSec = Math.round(firstStrongOnset * 1000) / 1000;
+    }
+  }
+
+  // 4. Estimate BPM if not in filename
   if (!detectedBpm || detectedBpm < 60 || detectedBpm > 200) {
-    const analyzeSeconds = Math.min(60, audioBuffer.duration);
-    const analyzeFrames = Math.floor(analyzeSeconds * audioBuffer.sampleRate);
-    const hopSize = Math.floor(audioBuffer.sampleRate * 0.02); // 20ms
-    const energies: number[] = [];
-    for (let f = 0; f < analyzeFrames; f += hopSize) {
-      let sum = 0;
-      const count = Math.min(hopSize, analyzeFrames - f);
-      for (let j = 0; j < count; j += 4) {
-        sum += channelData[f + j] * channelData[f + j];
-      }
-      energies.push(Math.sqrt(sum / Math.max(1, count / 4)));
-    }
-
-    const onsets: number[] = [];
-    for (let i = 2; i < energies.length - 2; i++) {
-      const localAvg = (energies[i - 2] + energies[i - 1] + energies[i + 1] + energies[i + 2]) / 4;
-      if (energies[i] > localAvg * 1.35 && energies[i] > 0.05) {
-        onsets.push(i * 0.02);
-      }
-    }
-
     const bpmBins: Record<number, number> = {};
     for (let i = 0; i < onsets.length; i++) {
       for (let j = i + 1; j < Math.min(i + 6, onsets.length); j++) {
@@ -243,80 +264,55 @@ export function detectBpmAndKeyFromAudio(
     detectedBpm = bestBpm || 120;
   }
 
-  return { bpm: detectedBpm, musicalKey: detectedKey, peaks };
+  return { bpm: detectedBpm, musicalKey: detectedKey, peaks, downbeatOffsetSec, detectedTimeSig };
 }
 
-export function generateSectionsForAudio(
-  durationSeconds: number,
-  bpm: number,
-  timeSig: string = '4/4'
-): SectionItem[] {
-  const beatsPerBar = timeSig === '3/4' ? 3 : timeSig === '6/8' ? 6 : 4;
-  const secondsPerBeat = 60 / bpm;
-  const secondsPerBar = secondsPerBeat * beatsPerBar;
-  const totalBars = Math.max(8, Math.round(durationSeconds / secondsPerBar));
+export const SCALE_CHORDS: Record<string, string[]> = {
+  'C Maj': ['C', 'Dm', 'Em', 'F', 'G', 'Am', 'Bdim'],
+  'Db Maj': ['Db', 'Ebm', 'Fm', 'Gb', 'Ab', 'Bbm', 'Cdim'],
+  'D Maj': ['D', 'Em', 'F#m', 'G', 'A', 'Bm', 'C#dim'],
+  'Eb Maj': ['Eb', 'Fm', 'Gm', 'Ab', 'Bb', 'Cm', 'Ddim'],
+  'E Maj': ['E', 'F#m', 'G#m', 'A', 'B', 'C#m', 'D#dim'],
+  'F Maj': ['F', 'Gm', 'Am', 'Bb', 'C', 'Dm', 'Edim'],
+  'F# Maj': ['F#', 'G#m', 'A#m', 'B', 'C#', 'D#m', 'E#dim'],
+  'G Maj': ['G', 'Am', 'Bm', 'C', 'D', 'Em', 'F#dim'],
+  'Ab Maj': ['Ab', 'Bbm', 'Cm', 'Db', 'Eb', 'Fm', 'Gdim'],
+  'A Maj': ['A', 'Bm', 'C#m', 'D', 'E', 'F#m', 'G#dim'],
+  'Bb Maj': ['Bb', 'Cm', 'Dm', 'Eb', 'F', 'Gm', 'Adim'],
+  'B Maj': ['B', 'C#m', 'D#m', 'E', 'F#', 'G#m', 'A#dim'],
+};
 
-  const sectionDefs: { type: string; name: string; targetBars: number; chords: string; notes: string; customCue?: string }[] = [
-    { type: 'INTRO', name: 'Intro', targetBars: 4, chords: 'C - G - Am - F', notes: 'Ambient build', customCue: 'Intro In 4' },
-    { type: 'VERSE', name: 'Verse 1', targetBars: 8, chords: 'Am - F - C - G', notes: 'Light rhythm & groove', customCue: 'Verse 1' },
-    { type: 'CHORUS', name: 'Chorus 1', targetBars: 8, chords: 'F - C - G - Am', notes: 'Full band hook', customCue: 'Chorus 1' },
-    { type: 'VERSE', name: 'Verse 2', targetBars: 8, chords: 'Am - F - C - G', notes: 'Driving pulse', customCue: 'Verse 2' },
-    { type: 'CHORUS', name: 'Chorus 2', targetBars: 8, chords: 'F - C - G - Am', notes: 'Energy up', customCue: 'Chorus 2' },
-    { type: 'BRIDGE', name: 'Bridge', targetBars: 8, chords: 'Dm - Am - G - F', notes: 'Dynamic crescendo', customCue: 'Bridge' },
-    { type: 'CHORUS', name: 'Chorus 3 (Big)', targetBars: 8, chords: 'F - C - G - Am', notes: 'Maximum intensity', customCue: 'Big Chorus' },
-    { type: 'OUTRO', name: 'Outro', targetBars: 4, chords: 'C - G - Am - F', notes: 'Final ring out & cue', customCue: 'Outro' },
-  ];
-
-  let remainingBars = totalBars;
-  const result: SectionItem[] = [];
-
-  for (let i = 0; i < sectionDefs.length && remainingBars > 0; i++) {
-    const def = sectionDefs[i];
-    const isLast = i === sectionDefs.length - 1;
-    const barsForThis = isLast ? remainingBars : Math.min(remainingBars, def.targetBars);
-    if (barsForThis <= 0) break;
-
-    result.push({
-      id: `sec-imported-${Date.now()}-${i}`,
-      type: def.type,
-      name: def.name,
-      bars: barsForThis,
-      stemMask: {
-        drums: def.type !== 'INTRO',
-        bass: true,
-        keys: true,
-        guitar: true,
-        vocals: def.type !== 'INTRO'
-      },
-      chordsText: def.chords,
-      mdNotes: def.notes,
-      customCue: def.customCue
-    });
-
-    remainingBars -= barsForThis;
+export function getSectionChordsForSong(sectionType: string, musicalKey: string = 'C Maj'): string {
+  const chords = SCALE_CHORDS[musicalKey] || SCALE_CHORDS['C Maj'];
+  switch (sectionType) {
+    case 'INTRO':
+      return `${chords[0]} - ${chords[4]} - ${chords[5]} - ${chords[3]}`;
+    case 'VERSE':
+      return `${chords[5]} - ${chords[3]} - ${chords[0]} - ${chords[4]}`;
+    case 'PRE_CHORUS':
+    case 'BUILD':
+      return `${chords[3]} - ${chords[4]} - ${chords[5]} - ${chords[4]}`;
+    case 'CHORUS':
+      return `${chords[3]} - ${chords[0]} - ${chords[4]} - ${chords[5]}`;
+    case 'BRIDGE':
+      return `${chords[1]} - ${chords[5]} - ${chords[4]} - ${chords[3]}`;
+    case 'BREAKDOWN':
+    case 'VAMP':
+      return `${chords[0]} - ${chords[3]} - ${chords[0]} - ${chords[3]}`;
+    case 'SOLO':
+      return `${chords[3]} - ${chords[4]} - ${chords[5]} - ${chords[0]}`;
+    case 'OUTRO':
+    default:
+      return `${chords[0]} - ${chords[3]} - ${chords[0]} - ${chords[0]}`;
   }
-
-  if (remainingBars > 0) {
-    result.push({
-      id: `sec-imported-${Date.now()}-extra`,
-      type: 'OUTRO',
-      name: 'Outro / Tag',
-      bars: remainingBars,
-      stemMask: { drums: false, bass: true, keys: true, guitar: true, vocals: false },
-      chordsText: 'C - G - Am - F',
-      mdNotes: 'Fade out / tag',
-      customCue: 'Outro Tag'
-    });
-  }
-
-  return result;
 }
 
 export function splitAudioIntoArrangerSections(
   sourceBuffer: AudioBuffer,
   sectionsList: SectionItem[],
   bpm: number,
-  beatsPerBar: number = 4
+  beatsPerBar: number = 4,
+  downbeatOffsetSec: number = 0
 ): SectionItem[] {
   const secondsPerBeat = 60.0 / bpm;
   const secondsPerBar = secondsPerBeat * beatsPerBar;
@@ -325,7 +321,7 @@ export function splitAudioIntoArrangerSections(
   let currentAccBars = 0;
 
   return sectionsList.map((sec) => {
-    const startSec = currentAccBars * secondsPerBar;
+    const startSec = Math.max(0, downbeatOffsetSec + currentAccBars * secondsPerBar);
     const durationSec = sec.bars * secondsPerBar;
     const endSec = Math.min(totalAudioDuration, startSec + durationSec);
     currentAccBars += sec.bars;
@@ -363,6 +359,241 @@ export function splitAudioIntoArrangerSections(
   });
 }
 
+export function analyzeSongArrangementStructure(
+  audioBuffer: AudioBuffer,
+  bpm: number,
+  timeSig: string = '4/4',
+  musicalKey: string = 'C Maj',
+  downbeatOffsetSec: number = 0
+): SectionItem[] {
+  const beatsPerBar = timeSig === '3/4' ? 3 : timeSig === '6/8' ? 6 : 4;
+  const secondsPerBeat = 60.0 / bpm;
+  const secondsPerBar = secondsPerBeat * beatsPerBar;
+  const effectiveDuration = Math.max(8, audioBuffer.duration - downbeatOffsetSec);
+  const totalBars = Math.max(8, Math.round(effectiveDuration / secondsPerBar));
+
+  const channelData = audioBuffer.getChannelData(0);
+  const sampleRate = audioBuffer.sampleRate;
+
+  // 1. Measure bar-by-bar RMS power to evaluate song dynamic progression
+  const barEnergies: number[] = [];
+  let maxRms = 0.001;
+
+  for (let b = 0; b < totalBars; b++) {
+    const bStart = Math.max(0, downbeatOffsetSec + b * secondsPerBar);
+    const bEnd = Math.min(audioBuffer.duration, bStart + secondsPerBar);
+    const sStart = Math.max(0, Math.floor(bStart * sampleRate));
+    const sEnd = Math.min(channelData.length, Math.floor(bEnd * sampleRate));
+    const len = Math.max(1, sEnd - sStart);
+
+    let sum = 0;
+    const step = Math.max(1, Math.floor(len / 128));
+    let count = 0;
+    for (let s = sStart; s < sEnd; s += step) {
+      const val = channelData[s];
+      sum += val * val;
+      count++;
+    }
+    const rms = Math.sqrt(sum / Math.max(1, count));
+    barEnergies.push(rms);
+    if (rms > maxRms) maxRms = rms;
+  }
+
+  // Normalized and smoothed energy curve
+  const normEnergies = barEnergies.map(e => e / maxRms);
+  const smoothed: number[] = [];
+  for (let i = 0; i < normEnergies.length; i++) {
+    const prev = normEnergies[Math.max(0, i - 1)];
+    const curr = normEnergies[i];
+    const next = normEnergies[Math.min(normEnergies.length - 1, i + 1)];
+    smoothed.push((prev + curr + next) / 3);
+  }
+
+  // 2. Dynamic arrangement structure definition
+  interface SectionBlueprint {
+    type: string;
+    name: string;
+    targetBars: number;
+    notes: string;
+    customCue?: string;
+  }
+
+  const blueprints: SectionBlueprint[] = [];
+
+  // Intro: 4 or 8 bars
+  const introBars = (totalBars >= 32 && smoothed.slice(0, 8).reduce((a, b) => a + b, 0) / 8 < 0.5) ? 8 : 4;
+  blueprints.push({
+    type: 'INTRO',
+    name: 'Intro',
+    targetBars: introBars,
+    notes: 'Atmospheric intro build',
+    customCue: 'Intro In 4'
+  });
+
+  // Outro: 4 or 8 bars
+  const outroBars = (totalBars >= 36 && smoothed.slice(-8).reduce((a, b) => a + b, 0) / 8 < 0.45) ? 8 : 4;
+  const middleBars = Math.max(8, totalBars - introBars - outroBars);
+
+  if (middleBars >= 48) {
+    // Full Arena / Studio arrangement
+    blueprints.push(
+      { type: 'VERSE', name: 'Verse 1', targetBars: 8, notes: 'Steady groove & rhythm', customCue: 'Verse 1' },
+      { type: 'PRE_CHORUS', name: 'Pre-Chorus', targetBars: 4, notes: 'Rising build into hook', customCue: 'Pre-Chorus' },
+      { type: 'CHORUS', name: 'Chorus 1', targetBars: 8, notes: 'Full dynamic hook', customCue: 'Chorus 1' },
+      { type: 'VERSE', name: 'Verse 2', targetBars: 8, notes: 'Driving pulse & groove', customCue: 'Verse 2' },
+      { type: 'CHORUS', name: 'Chorus 2', targetBars: 8, notes: 'Anthem peak energy', customCue: 'Chorus 2' },
+      { type: 'BRIDGE', name: 'Bridge', targetBars: 8, notes: 'Dynamic departure & crescendo', customCue: 'Bridge' },
+      { type: 'CHORUS', name: 'Chorus 3 (Big)', targetBars: Math.max(8, middleBars - 44), notes: 'Maximum intensity climax', customCue: 'Big Chorus' }
+    );
+  } else if (middleBars >= 28) {
+    // Standard arrangement
+    blueprints.push(
+      { type: 'VERSE', name: 'Verse 1', targetBars: 8, notes: 'Light groove & story', customCue: 'Verse 1' },
+      { type: 'CHORUS', name: 'Chorus 1', targetBars: 8, notes: 'Main anthem hook', customCue: 'Chorus 1' },
+      { type: 'VERSE', name: 'Verse 2', targetBars: 8, notes: 'Driving pulse', customCue: 'Verse 2' },
+      { type: 'BRIDGE', name: 'Bridge', targetBars: 4, notes: 'Dynamic build', customCue: 'Bridge' },
+      { type: 'CHORUS', name: 'Chorus 2 (Big)', targetBars: Math.max(4, middleBars - 28), notes: 'Climax hook', customCue: 'Big Chorus' }
+    );
+  } else if (middleBars >= 16) {
+    // Compact arrangement
+    const half = Math.floor(middleBars / 2);
+    blueprints.push(
+      { type: 'VERSE', name: 'Verse 1', targetBars: Math.min(8, half), notes: 'Groove rhythm', customCue: 'Verse 1' },
+      { type: 'CHORUS', name: 'Chorus 1', targetBars: Math.max(4, middleBars - Math.min(8, half)), notes: 'Full band hook', customCue: 'Chorus 1' }
+    );
+  } else {
+    // Short cue
+    blueprints.push({
+      type: 'VERSE',
+      name: 'Main Section',
+      targetBars: middleBars,
+      notes: 'Main theme',
+      customCue: 'Main Section'
+    });
+  }
+
+  // Outro
+  blueprints.push({
+    type: 'OUTRO',
+    name: 'Outro',
+    targetBars: outroBars,
+    notes: 'Final ring-out & resolve',
+    customCue: 'Outro'
+  });
+
+  // Balance total bars
+  const allocated = blueprints.reduce((sum, s) => sum + s.targetBars, 0);
+  const diff = totalBars - allocated;
+  if (diff !== 0) {
+    const targetAdjust = blueprints.find(s => s.name.includes('Chorus') || s.type === 'CHORUS') || blueprints[1];
+    if (targetAdjust) {
+      targetAdjust.targetBars = Math.max(4, targetAdjust.targetBars + diff);
+    }
+  }
+
+  // 3. Assemble SectionItems with stem masks, key chords, and audio slices
+  let curAcc = 0;
+  const sections: SectionItem[] = blueprints.map((bp, idx) => {
+    const bars = Math.max(2, bp.targetBars);
+    const startB = curAcc;
+    const endB = curAcc + bars;
+    curAcc += bars;
+
+    const secSlice = smoothed.slice(startB, endB);
+    const avgEnergy = secSlice.length > 0 ? secSlice.reduce((a, b) => a + b, 0) / secSlice.length : 0.5;
+
+    const isIntro = bp.type === 'INTRO';
+    const isOutro = bp.type === 'OUTRO';
+
+    const stemMask: StemMask = {
+      drums: isIntro ? avgEnergy > 0.45 : isOutro ? avgEnergy > 0.35 : true,
+      bass: true,
+      keys: true,
+      guitar: !isOutro || avgEnergy > 0.3,
+      vocals: !isIntro && (!isOutro || avgEnergy > 0.4)
+    };
+
+    return {
+      id: `sec-detected-${Date.now()}-${idx}`,
+      type: bp.type,
+      name: bp.name,
+      bars,
+      stemMask,
+      chordsText: getSectionChordsForSong(bp.type, musicalKey),
+      mdNotes: bp.notes,
+      customCue: bp.customCue
+    };
+  });
+
+  return splitAudioIntoArrangerSections(audioBuffer, sections, bpm, beatsPerBar, downbeatOffsetSec);
+}
+
+export function generateSectionsForAudio(
+  durationSeconds: number,
+  bpm: number,
+  timeSig: string = '4/4'
+): SectionItem[] {
+  const beatsPerBar = timeSig === '3/4' ? 3 : timeSig === '6/8' ? 6 : 4;
+  const secondsPerBeat = 60 / bpm;
+  const secondsPerBar = secondsPerBeat * beatsPerBar;
+  const totalBars = Math.max(8, Math.round(durationSeconds / secondsPerBar));
+
+  const sectionDefs: { type: string; name: string; targetBars: number; notes: string; customCue?: string }[] = [
+    { type: 'INTRO', name: 'Intro', targetBars: 4, notes: 'Ambient build', customCue: 'Intro In 4' },
+    { type: 'VERSE', name: 'Verse 1', targetBars: 8, notes: 'Light rhythm & groove', customCue: 'Verse 1' },
+    { type: 'CHORUS', name: 'Chorus 1', targetBars: 8, notes: 'Full band hook', customCue: 'Chorus 1' },
+    { type: 'VERSE', name: 'Verse 2', targetBars: 8, notes: 'Driving pulse', customCue: 'Verse 2' },
+    { type: 'CHORUS', name: 'Chorus 2', targetBars: 8, notes: 'Energy up', customCue: 'Chorus 2' },
+    { type: 'BRIDGE', name: 'Bridge', targetBars: 8, notes: 'Dynamic crescendo', customCue: 'Bridge' },
+    { type: 'CHORUS', name: 'Chorus 3 (Big)', targetBars: 8, notes: 'Maximum intensity', customCue: 'Big Chorus' },
+    { type: 'OUTRO', name: 'Outro', targetBars: 4, notes: 'Final ring out & cue', customCue: 'Outro' },
+  ];
+
+  let remainingBars = totalBars;
+  const result: SectionItem[] = [];
+
+  for (let i = 0; i < sectionDefs.length && remainingBars > 0; i++) {
+    const def = sectionDefs[i];
+    const isLast = i === sectionDefs.length - 1;
+    const barsForThis = isLast ? remainingBars : Math.min(remainingBars, def.targetBars);
+    if (barsForThis <= 0) break;
+
+    result.push({
+      id: `sec-imported-${Date.now()}-${i}`,
+      type: def.type,
+      name: def.name,
+      bars: barsForThis,
+      stemMask: {
+        drums: def.type !== 'INTRO',
+        bass: true,
+        keys: true,
+        guitar: true,
+        vocals: def.type !== 'INTRO'
+      },
+      chordsText: getSectionChordsForSong(def.type, 'C Maj'),
+      mdNotes: def.notes,
+      customCue: def.customCue
+    });
+
+    remainingBars -= barsForThis;
+  }
+
+  if (remainingBars > 0) {
+    result.push({
+      id: `sec-imported-${Date.now()}-extra`,
+      type: 'OUTRO',
+      name: 'Outro / Tag',
+      bars: remainingBars,
+      stemMask: { drums: false, bass: true, keys: true, guitar: true, vocals: false },
+      chordsText: getSectionChordsForSong('OUTRO', 'C Maj'),
+      mdNotes: 'Fade out / tag',
+      customCue: 'Outro Tag'
+    });
+  }
+
+  return result;
+}
+
 export async function separateAudioIntoStems(
   audioBuffer: AudioBuffer
 ): Promise<Record<string, AudioBuffer>> {
@@ -370,82 +601,122 @@ export async function separateAudioIntoStems(
   const length = audioBuffer.length;
   const numChannels = audioBuffer.numberOfChannels;
 
-  // 1. Bass (< 240 Hz)
+  // 1. Bass (< 210 Hz 24dB/oct steep lowpass)
   const bassCtx = new OfflineAudioContext(numChannels, length, sampleRate);
   const bassSrc = bassCtx.createBufferSource();
   bassSrc.buffer = audioBuffer;
-  const bassFilter = bassCtx.createBiquadFilter();
-  bassFilter.type = 'lowpass';
-  bassFilter.frequency.value = 240;
-  bassFilter.Q.value = 1.0;
-  bassSrc.connect(bassFilter);
-  bassFilter.connect(bassCtx.destination);
+  const bassHp = bassCtx.createBiquadFilter();
+  bassHp.type = 'highpass';
+  bassHp.frequency.value = 32;
+  const bassLp1 = bassCtx.createBiquadFilter();
+  bassLp1.type = 'lowpass';
+  bassLp1.frequency.value = 210;
+  bassLp1.Q.value = 0.9;
+  const bassLp2 = bassCtx.createBiquadFilter();
+  bassLp2.type = 'lowpass';
+  bassLp2.frequency.value = 210;
+  bassLp2.Q.value = 0.9;
+  const bassGain = bassCtx.createGain();
+  bassGain.gain.value = 1.35;
+  bassSrc.connect(bassHp);
+  bassHp.connect(bassLp1);
+  bassLp1.connect(bassLp2);
+  bassLp2.connect(bassGain);
+  bassGain.connect(bassCtx.destination);
   bassSrc.start(0);
   const bassBuffer = await bassCtx.startRendering();
 
-  // 2. Drums (Sub punch < 120Hz + High snap > 4500Hz)
+  // 2. Drums (Sub punch < 115Hz + Snare body 220Hz + High snap > 3500Hz)
   const drumCtx = new OfflineAudioContext(numChannels, length, sampleRate);
   const drumSrc = drumCtx.createBufferSource();
   drumSrc.buffer = audioBuffer;
   const kickFilter = drumCtx.createBiquadFilter();
   kickFilter.type = 'lowpass';
-  kickFilter.frequency.value = 120;
+  kickFilter.frequency.value = 115;
+  kickFilter.Q.value = 1.1;
+  const snareFilter = drumCtx.createBiquadFilter();
+  snareFilter.type = 'peaking';
+  snareFilter.frequency.value = 220;
+  snareFilter.gain.value = 5.0;
+  snareFilter.Q.value = 1.8;
   const hatFilter = drumCtx.createBiquadFilter();
   hatFilter.type = 'highpass';
-  hatFilter.frequency.value = 4500;
+  hatFilter.frequency.value = 3500;
+  hatFilter.Q.value = 0.8;
   const drumGain = drumCtx.createGain();
-  drumGain.gain.value = 1.25;
+  drumGain.gain.value = 1.3;
   drumSrc.connect(kickFilter);
   kickFilter.connect(drumGain);
+  drumSrc.connect(snareFilter);
+  snareFilter.connect(drumGain);
   drumSrc.connect(hatFilter);
   hatFilter.connect(drumGain);
   drumGain.connect(drumCtx.destination);
   drumSrc.start(0);
   const drumBuffer = await drumCtx.startRendering();
 
-  // 3. Keys & Pads (Bandpass 350Hz - 2500Hz)
+  // 3. Keys & Analog Pads (Bandpass 300Hz - 2800Hz)
   const keysCtx = new OfflineAudioContext(numChannels, length, sampleRate);
   const keysSrc = keysCtx.createBufferSource();
   keysSrc.buffer = audioBuffer;
   const keysFilter = keysCtx.createBiquadFilter();
   keysFilter.type = 'bandpass';
-  keysFilter.frequency.value = 900;
-  keysFilter.Q.value = 0.7;
+  keysFilter.frequency.value = 950;
+  keysFilter.Q.value = 0.6;
+  const keysGain = keysCtx.createGain();
+  keysGain.gain.value = 1.25;
   keysSrc.connect(keysFilter);
-  keysFilter.connect(keysCtx.destination);
+  keysFilter.connect(keysGain);
+  keysGain.connect(keysCtx.destination);
   keysSrc.start(0);
   const keysBuffer = await keysCtx.startRendering();
 
-  // 4. Guitars (Highpass 400Hz + Peaking 2400Hz)
+  // 4. Guitars & Other Mid Elements (Highpass 350Hz, Peaking 2200Hz bite, Lowpass 6000Hz)
   const gtrCtx = new OfflineAudioContext(numChannels, length, sampleRate);
   const gtrSrc = gtrCtx.createBufferSource();
   gtrSrc.buffer = audioBuffer;
   const gtrHp = gtrCtx.createBiquadFilter();
   gtrHp.type = 'highpass';
-  gtrHp.frequency.value = 400;
+  gtrHp.frequency.value = 350;
   const gtrFilter = gtrCtx.createBiquadFilter();
   gtrFilter.type = 'peaking';
-  gtrFilter.frequency.value = 2400;
-  gtrFilter.gain.value = 4.5;
+  gtrFilter.frequency.value = 2200;
+  gtrFilter.gain.value = 5.0;
   gtrFilter.Q.value = 1.2;
+  const gtrLp = gtrCtx.createBiquadFilter();
+  gtrLp.type = 'lowpass';
+  gtrLp.frequency.value = 6000;
+  const gtrGain = gtrCtx.createGain();
+  gtrGain.gain.value = 1.25;
   gtrSrc.connect(gtrHp);
   gtrHp.connect(gtrFilter);
-  gtrFilter.connect(gtrCtx.destination);
+  gtrFilter.connect(gtrLp);
+  gtrLp.connect(gtrGain);
+  gtrGain.connect(gtrCtx.destination);
   gtrSrc.start(0);
   const gtrBuffer = await gtrCtx.startRendering();
 
-  // 5. Vocals (Bandpass 800Hz - 6000Hz)
+  // 5. Vocals (Vocal bandpass 320Hz - 4800Hz + Air High-Shelf 7500Hz)
   const voxCtx = new OfflineAudioContext(numChannels, length, sampleRate);
   const voxSrc = voxCtx.createBufferSource();
   voxSrc.buffer = audioBuffer;
+  const voxHp = voxCtx.createBiquadFilter();
+  voxHp.type = 'highpass';
+  voxHp.frequency.value = 240;
   const voxFilter = voxCtx.createBiquadFilter();
   voxFilter.type = 'bandpass';
-  voxFilter.frequency.value = 2500;
-  voxFilter.Q.value = 0.6;
+  voxFilter.frequency.value = 2200;
+  voxFilter.Q.value = 0.55;
+  const voxShelf = voxCtx.createBiquadFilter();
+  voxShelf.type = 'highshelf';
+  voxShelf.frequency.value = 7500;
+  voxShelf.gain.value = 3.5;
   const voxGain = voxCtx.createGain();
   voxGain.gain.value = 1.35;
-  voxSrc.connect(voxFilter);
-  voxFilter.connect(voxGain);
+  voxSrc.connect(voxHp);
+  voxHp.connect(voxFilter);
+  voxFilter.connect(voxShelf);
+  voxShelf.connect(voxGain);
   voxGain.connect(voxCtx.destination);
   voxSrc.start(0);
   const voxBuffer = await voxCtx.startRendering();
@@ -614,12 +885,20 @@ export default function App() {
     bpm: number;
     musicalKey: string;
     timeSig: string;
+    downbeatOffsetSec: number;
     peaks: number[];
     sections: SectionItem[];
     audioBuffer: AudioBuffer;
-    splitMode: 'CURRENT_ARRANGER' | 'DYNAMIC_SECTIONS';
+    splitMode: 'SMART_ARRANGEMENT' | 'CURRENT_ARRANGER';
     separateStems: boolean;
   } | null>(null);
+
+  // Click Track & Downbeat Phase Alignment State
+  const [downbeatOffsetSec, setDownbeatOffsetSec] = useState<number>(0);
+  const downbeatOffsetSecRef = useRef<number>(0);
+  useEffect(() => {
+    downbeatOffsetSecRef.current = downbeatOffsetSec;
+  }, [downbeatOffsetSec]);
 
   // MIDI Controller State
   const [midiSupported, setMidiSupported] = useState(false);
@@ -902,7 +1181,13 @@ export default function App() {
     osc.stop(now + 0.13);
   }, []);
 
-  const playClickSound = (scheduledTime: number, isDownbeat: boolean, clickVol: number, pan: number) => {
+  const playClickSound = (
+    scheduledTime: number,
+    isDownbeat: boolean,
+    clickVol: number,
+    pan: number,
+    isSecondary: boolean = false
+  ) => {
     const ctx = audioCtxRef.current;
     if (!ctx) return;
     const sound = clickSoundRef.current;
@@ -911,8 +1196,9 @@ export default function App() {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(isDownbeat ? 1050 : 780, scheduledTime);
-      gain.gain.setValueAtTime(clickVol * 0.55, scheduledTime);
+      const freq = isDownbeat ? 1150 : isSecondary ? 920 : 780;
+      osc.frequency.setValueAtTime(freq, scheduledTime);
+      gain.gain.setValueAtTime(clickVol * (isDownbeat ? 0.60 : isSecondary ? 0.45 : 0.35), scheduledTime);
       gain.gain.exponentialRampToValueAtTime(0.001, scheduledTime + 0.035);
       osc.connect(gain);
       connectWithPan(gain, pan);
@@ -927,9 +1213,9 @@ export default function App() {
       noise.buffer = buffer;
       const filter = ctx.createBiquadFilter();
       filter.type = 'highpass';
-      filter.frequency.setValueAtTime(isDownbeat ? 3000 : 2000, scheduledTime);
+      filter.frequency.setValueAtTime(isDownbeat ? 3400 : isSecondary ? 2600 : 2000, scheduledTime);
       const gain = ctx.createGain();
-      gain.gain.setValueAtTime(clickVol * 0.45, scheduledTime);
+      gain.gain.setValueAtTime(clickVol * (isDownbeat ? 0.50 : isSecondary ? 0.36 : 0.25), scheduledTime);
       gain.gain.exponentialRampToValueAtTime(0.001, scheduledTime + 0.025);
       noise.connect(filter);
       filter.connect(gain);
@@ -939,8 +1225,9 @@ export default function App() {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = isDownbeat ? 'triangle' : 'sine';
-      osc.frequency.setValueAtTime(isDownbeat ? 1650 : 1080, scheduledTime);
-      gain.gain.setValueAtTime(clickVol * (isDownbeat ? 0.42 : 0.22), scheduledTime);
+      const freq = isDownbeat ? 1760 : isSecondary ? 1320 : 880;
+      osc.frequency.setValueAtTime(freq, scheduledTime);
+      gain.gain.setValueAtTime(clickVol * (isDownbeat ? 0.48 : isSecondary ? 0.32 : 0.22), scheduledTime);
       gain.gain.exponentialRampToValueAtTime(0.001, scheduledTime + 0.045);
       osc.connect(gain);
       connectWithPan(gain, pan);
@@ -986,15 +1273,30 @@ export default function App() {
 
     const newMeters: Record<string, number> = {};
 
-    // 1. CLICK TRACK
+    // 1. CLICK TRACK (Conductor Accents aligned to Time Signature)
     const clickTrack = allTracks.find(t => t.id === 'click');
     if (isTrackAudible('click', allTracks)) {
       const clickVol = clickTrack?.volume || 0.85;
-      const shouldClick = clickTrack?.subdivision === '1/8' ? isEighthBeat : isQuarterBeat;
-      if (shouldClick) {
-        const isDownbeat = stepInBar === 0;
-        playClickSound(scheduledTime, isDownbeat, clickVol, clickTrack?.pan || 0);
-        newMeters.click = isDownbeat ? 0.95 : 0.65;
+      const isSubEighth = clickTrack?.subdivision === '1/8';
+
+      if (timeSigRef.current === '6/8') {
+        // 6/8 meter: 6 pulses (steps 0, 4, 8, 12, 16, 20). Beat 1 is primary downbeat, Beat 4 is secondary accent
+        const isPulse = stepInBar % 4 === 0;
+        const isPulseSub = isSubEighth && stepInBar % 2 === 0;
+        if (isPulse || isPulseSub) {
+          const isDownbeat = stepInBar === 0;
+          const isSecondary = stepInBar === 12;
+          playClickSound(scheduledTime, isDownbeat, clickVol, clickTrack?.pan || 0, isSecondary);
+          newMeters.click = isDownbeat ? 0.95 : isSecondary ? 0.78 : 0.60;
+        }
+      } else {
+        // 4/4 or 3/4 meter: Beat 1 is downbeat
+        const shouldClick = isSubEighth ? isEighthBeat : isQuarterBeat;
+        if (shouldClick) {
+          const isDownbeat = stepInBar === 0;
+          playClickSound(scheduledTime, isDownbeat, clickVol, clickTrack?.pan || 0, false);
+          newMeters.click = isDownbeat ? 0.95 : 0.65;
+        }
       }
     }
 
@@ -1026,9 +1328,9 @@ export default function App() {
     const chordSemitone = activeSec.meta.chords[barInSec % activeSec.meta.chords.length];
     const midiToFreq = (m: number) => 440 * Math.pow(2, (m + semitoneOffset - 69) / 12);
 
-    // 3. DRUMS STEM
+    // 3. DRUMS STEM (Oscillator synth when no audioBuffer is loaded)
     const drumsTrack = allTracks.find(t => t.id === 'drums');
-    if (mask.drums && isTrackAudible('drums', allTracks)) {
+    if (!drumsTrack?.audioBuffer && mask.drums && isTrackAudible('drums', allTracks)) {
       const drumVol = (drumsTrack?.volume || 0.85) * intensity;
       const drumPan = drumsTrack?.pan || 0;
       const isKick = stepInBar === 0 || stepInBar === 8 || (intensity > 0.7 && stepInBar === 10);
@@ -1088,9 +1390,9 @@ export default function App() {
       }
     }
 
-    // 4. BASS STEM
+    // 4. BASS STEM (Oscillator synth when no audioBuffer is loaded)
     const bassTrack = allTracks.find(t => t.id === 'bass');
-    if (mask.bass && isTrackAudible('bass', allTracks)) {
+    if (!bassTrack?.audioBuffer && mask.bass && isTrackAudible('bass', allTracks)) {
       const bassVol = bassTrack?.volume || 0.82;
       const bassPan = bassTrack?.pan || 0;
       if (isEighthBeat) {
@@ -1114,9 +1416,9 @@ export default function App() {
       }
     }
 
-    // 5. KEYS & PADS
+    // 5. KEYS & PADS (Oscillator synth when no audioBuffer is loaded)
     const keysTrack = allTracks.find(t => t.id === 'keys');
-    if (mask.keys && isTrackAudible('keys', allTracks)) {
+    if (!keysTrack?.audioBuffer && mask.keys && isTrackAudible('keys', allTracks)) {
       const keysVol = keysTrack?.volume || 0.78;
       const keysPan = keysTrack?.pan || 0;
       if (stepInBar === 0 || (intensity >= 0.8 && stepInBar === 8)) {
@@ -1139,9 +1441,9 @@ export default function App() {
       }
     }
 
-    // 6. ELECTRIC GUITARS
+    // 6. ELECTRIC GUITARS (Oscillator synth when no audioBuffer is loaded)
     const gtrTrack = allTracks.find(t => t.id === 'guitar');
-    if (mask.guitar && isTrackAudible('guitar', allTracks)) {
+    if (!gtrTrack?.audioBuffer && mask.guitar && isTrackAudible('guitar', allTracks)) {
       const gtrVol = gtrTrack?.volume || 0.75;
       const gtrPan = gtrTrack?.pan || 0;
       const arpPattern = [0, 7, 12, 7, 4, 7, 12, 16];
@@ -1161,9 +1463,9 @@ export default function App() {
       }
     }
 
-    // 7. VOCALS / BGV CHOIR
+    // 7. VOCALS / BGV CHOIR (Oscillator synth when no audioBuffer is loaded)
     const voxTrack = allTracks.find(t => t.id === 'vocals');
-    if (mask.vocals && isTrackAudible('vocals', allTracks)) {
+    if (!voxTrack?.audioBuffer && mask.vocals && isTrackAudible('vocals', allTracks)) {
       const voxVol = voxTrack?.volume || 0.80;
       const voxPan = voxTrack?.pan || 0;
       if (stepInBar === 0 || stepInBar === 6 || stepInBar === 12) {
@@ -1189,6 +1491,17 @@ export default function App() {
         newMeters.vocals = 0.82 * intensity;
       }
     }
+
+    // Stems meter activity when real audio buffers are active
+    allTracks.forEach(t => {
+      if (t.audioBuffer && isTrackAudible(t.id, allTracks)) {
+        const isStemActive = activeSec ? (activeSec.stemMask?.[t.id] ?? true) : true;
+        if (isStemActive) {
+          const pulse = (stepInBar % 4 === 0) ? 0.88 : (stepInBar % 2 === 0) ? 0.58 : 0.32;
+          newMeters[t.id] = Math.max(newMeters[t.id] || 0, pulse * t.volume);
+        }
+      }
+    });
 
     setTrackMeters(newMeters);
   }, [triggerVoiceCue]);
@@ -1662,6 +1975,20 @@ export default function App() {
     }
   };
 
+  const handleNudgeDownbeat = (deltaSec: number) => {
+    const newOffset = Math.max(-0.5, Math.min(2.0, Math.round((downbeatOffsetSec + deltaSec) * 1000) / 1000));
+    setDownbeatOffsetSec(newOffset);
+    downbeatOffsetSecRef.current = newOffset;
+
+    const audioTrack = tracks.find(t => t.id === 'master_audio' && t.audioBuffer) || tracks.find(t => t.audioBuffer);
+    if (audioTrack?.audioBuffer) {
+      const curBeats = timeSig === '3/4' ? 3 : timeSig === '6/8' ? 6 : 4;
+      const reSliced = splitAudioIntoArrangerSections(audioTrack.audioBuffer, sections, bpm, curBeats, newOffset);
+      setSections(reSliced);
+    }
+    showToast(`Click Phase Offset: ${newOffset >= 0 ? '+' : ''}${Math.round(newOffset * 1000)}ms`);
+  };
+
   const loadSongFromSetlist = (song: SongPreset) => {
     stopTrackAudioBuffers();
     setActiveSongId(song.id);
@@ -1672,6 +1999,9 @@ export default function App() {
     setPitchShift(song.pitchShift);
     setSections(song.sections);
     setSelectedSectionId(song.sections[0]?.id || 'sec-1');
+    const offset = song.downbeatOffsetSec || 0;
+    setDownbeatOffsetSec(offset);
+    downbeatOffsetSecRef.current = offset;
     stepRef.current = 0;
     setCurrentStep(0);
     setShowSetlistModal(false);
@@ -1679,15 +2009,16 @@ export default function App() {
     if (song.isCustomAudio && song.audioBuffer) {
       setTracks(prev => {
         const withoutOldMaster = prev.filter(t => t.id !== 'master_audio');
+        const hasStems = song.stems && Object.keys(song.stems).length > 0;
         const masterTrack: TrackItem = {
           id: 'master_audio',
-          name: `AUDIO: ${song.name}`,
+          name: hasStems ? `REF MIX: ${song.name}` : `AUDIO: ${song.name}`,
           category: 'STEM',
           color: '#06B6D4',
           route: 'Out 1-2 (Main FOH)',
           volume: 0.88,
           pan: 0,
-          muted: false,
+          muted: !!hasStems, // Muted by default if stems are present to avoid acoustic doubling
           solo: false,
           audioBuffer: song.audioBuffer,
           fileName: song.audioFileName,
@@ -1695,7 +2026,17 @@ export default function App() {
         };
         const clickTrack = withoutOldMaster.find(t => t.id === 'click') || INITIAL_TRACKS[0];
         const cuesTrack = withoutOldMaster.find(t => t.id === 'cues') || INITIAL_TRACKS[1];
-        const rest = withoutOldMaster.filter(t => t.id !== 'click' && t.id !== 'cues');
+        const rest = withoutOldMaster.filter(t => t.id !== 'click' && t.id !== 'cues').map(t => {
+          if (song.stems && song.stems[t.id]) {
+            return {
+              ...t,
+              audioBuffer: song.stems[t.id],
+              waveformPeaks: song.stemPeaks?.[t.id] || extractBufferPeaks(song.stems[t.id], 128),
+              fileName: `${song.audioFileName || song.name} (${t.name})`
+            };
+          }
+          return t;
+        });
         return [clickTrack, cuesTrack, masterTrack, ...rest];
       });
     } else {
@@ -1713,22 +2054,22 @@ export default function App() {
       return;
     }
 
-    showToast('Splitting imported song according to arranger structure...');
-    const curBeats = timeSig === '3/4' ? 3 : timeSig === '6/8' ? 6 : 4;
-    const slicedSections = splitAudioIntoArrangerSections(
+    showToast('Analyzing musical arrangement structure & extracting element stems...');
+    const detectedSections = analyzeSongArrangementStructure(
       audioTrack.audioBuffer,
-      sections,
       bpm,
-      curBeats
+      timeSig,
+      musicalKey,
+      downbeatOffsetSec
     );
 
-    setSections(slicedSections);
+    setSections(detectedSections);
 
     try {
       const stems = await separateAudioIntoStems(audioTrack.audioBuffer);
       setTracks(prev => prev.map(t => {
         if (stems[t.id]) {
-          const stemPeaks = extractBufferPeaks(stems[t.id], 64);
+          const stemPeaks = extractBufferPeaks(stems[t.id], 128);
           return {
             ...t,
             audioBuffer: stems[t.id],
@@ -1736,13 +2077,16 @@ export default function App() {
             fileName: `${audioTrack.fileName || 'Song'} (${t.name})`
           };
         }
+        if (t.id === 'master_audio') {
+          return { ...t, muted: true, name: `REF MIX: ${projectName}` };
+        }
         return t;
       }));
     } catch (err) {
       console.warn('Stem separation background notice:', err);
     }
 
-    showToast(`Split "${projectName}" into ${slicedSections.length} arranger sections & stem tracks!`);
+    showToast(`Split into ${detectedSections.length} arrangement sections & stems with click aligned to ${timeSig}!`);
   };
 
   const handleProcessAudioFile = async (file: File) => {
@@ -1756,7 +2100,7 @@ export default function App() {
     const ctx = audioCtxRef.current;
     if (!ctx) return;
 
-    showToast(`Analyzing "${file.name}"...`);
+    showToast(`Analyzing musical arrangement of "${file.name}"...`);
 
     try {
       const arrayBuffer = await file.arrayBuffer();
@@ -1767,10 +2111,19 @@ export default function App() {
         .replace(/[_-]+/g, ' ')
         .trim();
 
-      const { bpm: detectedBpm, musicalKey: detectedKey, peaks } = detectBpmAndKeyFromAudio(file.name, audioBuffer, KEY_SIGNATURES);
+      const { bpm: detectedBpm, musicalKey: detectedKey, peaks, downbeatOffsetSec: detectedOffset, detectedTimeSig } =
+        detectBpmAndKeyFromAudio(file.name, audioBuffer, KEY_SIGNATURES);
 
-      const curBeats = timeSig === '3/4' ? 3 : timeSig === '6/8' ? 6 : 4;
-      const arrangerSplit = splitAudioIntoArrangerSections(audioBuffer, sections, detectedBpm, curBeats);
+      const initialTimeSig = detectedTimeSig || timeSig || '4/4';
+
+      // Automatically analyze actual musical arrangement structure based on audio energy profile
+      const smartArrangerSplit = analyzeSongArrangementStructure(
+        audioBuffer,
+        detectedBpm,
+        initialTimeSig,
+        detectedKey,
+        detectedOffset
+      );
 
       setPendingAudioImport({
         name: cleanName,
@@ -1778,16 +2131,17 @@ export default function App() {
         duration: audioBuffer.duration,
         bpm: detectedBpm,
         musicalKey: detectedKey,
-        timeSig: timeSig || '4/4',
+        timeSig: initialTimeSig,
+        downbeatOffsetSec: detectedOffset,
         peaks,
-        sections: arrangerSplit,
+        sections: smartArrangerSplit,
         audioBuffer,
-        splitMode: 'CURRENT_ARRANGER',
+        splitMode: 'SMART_ARRANGEMENT',
         separateStems: true
       });
 
       setShowAudioImportModal(true);
-      showToast(`Audio decoded (${Math.round(audioBuffer.duration)}s • ${detectedBpm} BPM)`);
+      showToast(`Analyzed ${Math.round(audioBuffer.duration)}s audio • ${detectedBpm} BPM • Click locked (${Math.round(detectedOffset * 1000)}ms offset)`);
     } catch (err) {
       console.error('Audio decode error:', err);
       showToast('Error decoding audio. Please try another .WAV or .MP3 file.');
@@ -1800,26 +2154,26 @@ export default function App() {
     const curBeats = pendingAudioImport.timeSig === '3/4' ? 3 : pendingAudioImport.timeSig === '6/8' ? 6 : 4;
     let finalSections: SectionItem[];
 
-    if (pendingAudioImport.splitMode === 'CURRENT_ARRANGER') {
+    if (pendingAudioImport.splitMode === 'SMART_ARRANGEMENT') {
+      finalSections = analyzeSongArrangementStructure(
+        pendingAudioImport.audioBuffer,
+        pendingAudioImport.bpm,
+        pendingAudioImport.timeSig,
+        pendingAudioImport.musicalKey,
+        pendingAudioImport.downbeatOffsetSec
+      );
+    } else {
       finalSections = splitAudioIntoArrangerSections(
         pendingAudioImport.audioBuffer,
         sections,
         pendingAudioImport.bpm,
-        curBeats
-      );
-    } else {
-      const generated = generateSectionsForAudio(
-        pendingAudioImport.duration,
-        pendingAudioImport.bpm,
-        pendingAudioImport.timeSig
-      );
-      finalSections = splitAudioIntoArrangerSections(
-        pendingAudioImport.audioBuffer,
-        generated,
-        pendingAudioImport.bpm,
-        curBeats
+        curBeats,
+        pendingAudioImport.downbeatOffsetSec
       );
     }
+
+    setDownbeatOffsetSec(pendingAudioImport.downbeatOffsetSec);
+    downbeatOffsetSecRef.current = pendingAudioImport.downbeatOffsetSec;
 
     const newSongId = `song-${Date.now()}`;
     const newSong: SongPreset = {
@@ -1834,7 +2188,8 @@ export default function App() {
       audioBuffer: pendingAudioImport.audioBuffer,
       audioFileName: pendingAudioImport.fileName,
       audioDuration: pendingAudioImport.duration,
-      audioPeaks: pendingAudioImport.peaks
+      audioPeaks: pendingAudioImport.peaks,
+      downbeatOffsetSec: pendingAudioImport.downbeatOffsetSec
     };
 
     setSetlist(prev => [...prev, newSong]);
@@ -1844,9 +2199,12 @@ export default function App() {
       showToast('Extracting stems (Drums, Bass, Keys, Guitars, Vocals)...');
       try {
         const stems = await separateAudioIntoStems(pendingAudioImport.audioBuffer);
+        const stemPeaksMap: Record<string, number[]> = {};
+
         setTracks(prev => prev.map(t => {
           if (stems[t.id]) {
-            const stemPeaks = extractBufferPeaks(stems[t.id], 64);
+            const stemPeaks = extractBufferPeaks(stems[t.id], 128);
+            stemPeaksMap[t.id] = stemPeaks;
             return {
               ...t,
               audioBuffer: stems[t.id],
@@ -1854,9 +2212,19 @@ export default function App() {
               fileName: `${pendingAudioImport.fileName} (${t.name})`
             };
           }
+          if (t.id === 'master_audio') {
+            return {
+              ...t,
+              muted: true,
+              name: `REF MIX: ${pendingAudioImport.name}`
+            };
+          }
           return t;
         }));
-        showToast(`Split into 5 stems & ${finalSections.length} arranger sections!`);
+
+        newSong.stems = stems;
+        newSong.stemPeaks = stemPeaksMap;
+        showToast(`Split into 5 stems & ${finalSections.length} sections with click aligned to ${pendingAudioImport.timeSig}!`);
       } catch (err) {
         console.warn('Stem separation notice:', err);
       }
@@ -1864,7 +2232,7 @@ export default function App() {
 
     setShowAudioImportModal(false);
     setShowSetlistModal(false);
-    showToast(`Imported "${newSong.name}" & split to ${finalSections.length} arranger sections!`);
+    showToast(`Imported "${newSong.name}" & split into ${finalSections.length} arranger sections!`);
   };
 
   const addNewSongToSetlist = () => {
@@ -2261,6 +2629,34 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
               <option value="3/4">3/4</option>
               <option value="6/8">6/8</option>
             </select>
+          </div>
+
+          <div className="pr-3 border-r border-white/[0.06] hidden sm:flex flex-col">
+            <span className="text-[8px] uppercase tracking-wider text-slate-500 font-bold">CLICK ALIGN</span>
+            <div className="flex items-center gap-1">
+              <span
+                className="text-[9.5px] font-mono px-1.5 py-0.5 rounded bg-cyan-950/70 text-cyan-300 border border-cyan-800/40 font-bold"
+                title={`Click track aligned to ${timeSig} with downbeat offset`}
+              >
+                {downbeatOffsetSec !== 0 ? `${downbeatOffsetSec >= 0 ? '+' : ''}${Math.round(downbeatOffsetSec * 1000)}ms` : '0ms'}
+              </span>
+              <button
+                type="button"
+                onClick={() => handleNudgeDownbeat(-0.005)}
+                className="text-[9px] px-1 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-white font-mono transition"
+                title="Nudge click phase -5ms"
+              >
+                -5
+              </button>
+              <button
+                type="button"
+                onClick={() => handleNudgeDownbeat(0.005)}
+                className="text-[9px] px-1 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-white font-mono transition"
+                title="Nudge click phase +5ms"
+              >
+                +5
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -2741,14 +3137,22 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
             <div className="w-72 sm:w-80 shrink-0 bg-[#0F141F] border-r border-white/[0.06] flex flex-col z-20">
               <div className="h-24 px-3 border-b border-white/[0.06] flex flex-col justify-center bg-[#0C1018]">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    STRUCTURE ({totalBars} BARS)
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      STRUCTURE ({totalBars}b)
+                    </span>
+                    <span
+                      className="text-[8px] font-mono px-1 py-0.5 rounded bg-cyan-950/70 text-cyan-300 border border-cyan-800/40 font-bold"
+                      title={`Click aligned: ${timeSig} meter • ${downbeatOffsetSec !== 0 ? `${downbeatOffsetSec >= 0 ? '+' : ''}${Math.round(downbeatOffsetSec * 1000)}ms` : '0ms offset'}`}
+                    >
+                      {timeSig}
+                    </span>
+                  </div>
                   <div className="flex items-center gap-1">
                     <button
                       onClick={splitActiveSongToArranger}
-                      className="text-[9px] text-cyan-300 hover:text-white px-1.5 py-0.5 rounded bg-cyan-950/70 border border-cyan-500/40 flex items-center gap-1 font-semibold transition"
-                      title="Automatically split imported song into arranger sections & stems"
+                      className="text-[9px] text-cyan-300 hover:text-white px-2 py-0.5 rounded bg-cyan-950/80 border border-cyan-500/50 flex items-center gap-1 font-semibold transition hover:bg-cyan-900 shadow-sm"
+                      title="Automatically split imported song into musical arrangement, stems & aligned click"
                     >
                       <Split className="w-2.5 h-2.5 text-cyan-400" />
                       <span>Auto-Split</span>
@@ -3126,15 +3530,15 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                                   const barCount = Math.max(16, sec.bars * 6);
                                   return Array.from({ length: barCount }).map((_, barI) => {
                                     let heightPct = 50;
-                                    if (slicePeaks && slicePeaks.length > 0) {
-                                      const pIdx = Math.floor((barI / barCount) * slicePeaks.length);
-                                      heightPct = Math.max(12, (slicePeaks[pIdx] || 0.4) * 92);
-                                    } else if (track.waveformPeaks && track.waveformPeaks.length > 0) {
+                                    if (track.waveformPeaks && track.waveformPeaks.length > 0) {
                                       const secStartRatio = sec.startBar / Math.max(1, totalBars);
                                       const secEndRatio = sec.endBar / Math.max(1, totalBars);
                                       const globalRatio = secStartRatio + (barI / barCount) * (secEndRatio - secStartRatio);
-                                      const peakIdx = Math.floor(globalRatio * track.waveformPeaks.length) % track.waveformPeaks.length;
+                                      const peakIdx = Math.min(track.waveformPeaks.length - 1, Math.max(0, Math.floor(globalRatio * track.waveformPeaks.length)));
                                       heightPct = Math.max(12, (track.waveformPeaks[peakIdx] || 0.4) * 92);
+                                    } else if (slicePeaks && slicePeaks.length > 0) {
+                                      const pIdx = Math.floor((barI / barCount) * slicePeaks.length);
+                                      heightPct = Math.max(12, (slicePeaks[pIdx] || 0.4) * 92);
                                     } else {
                                       const seed = (trackIdx + 1) * 1000 + sec.type.charCodeAt(0) * 37 + barI;
                                       const rand = pseudoRandom(seed);
@@ -3452,8 +3856,8 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
               </div>
 
               {/* Form Inputs */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-3">
                   <label className="text-[10px] font-mono uppercase tracking-wider text-slate-400 block mb-1">
                     Song Title
                   </label>
@@ -3473,7 +3877,7 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                     <button
                       type="button"
                       onClick={() => setPendingAudioImport({ ...pendingAudioImport, bpm: Math.max(50, pendingAudioImport.bpm - 1) })}
-                      className="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold"
+                      className="px-2 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold"
                     >
                       -1
                     </button>
@@ -3481,16 +3885,31 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                       type="number"
                       value={pendingAudioImport.bpm}
                       onChange={(e) => setPendingAudioImport({ ...pendingAudioImport, bpm: parseInt(e.target.value, 10) || 120 })}
-                      className="w-full text-center bg-[#090C12] border border-white/10 rounded-lg px-2 py-2 text-sm font-mono font-bold text-amber-400 focus:outline-none focus:border-cyan-500"
+                      className="w-full text-center bg-[#090C12] border border-white/10 rounded-lg px-1 py-2 text-sm font-mono font-bold text-amber-400 focus:outline-none focus:border-cyan-500"
                     />
                     <button
                       type="button"
                       onClick={() => setPendingAudioImport({ ...pendingAudioImport, bpm: Math.min(220, pendingAudioImport.bpm + 1) })}
-                      className="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold"
+                      className="px-2 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold"
                     >
                       +1
                     </button>
                   </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-mono uppercase tracking-wider text-slate-400 block mb-1">
+                    Meter / Time Sig
+                  </label>
+                  <select
+                    value={pendingAudioImport.timeSig}
+                    onChange={(e) => setPendingAudioImport({ ...pendingAudioImport, timeSig: e.target.value })}
+                    className="w-full bg-[#090C12] border border-white/10 rounded-lg px-3 py-2 text-sm font-semibold text-cyan-400 focus:outline-none focus:border-cyan-500"
+                  >
+                    <option value="4/4">4/4 Standard</option>
+                    <option value="3/4">3/4 Waltz / Ballad</option>
+                    <option value="6/8">6/8 Compound</option>
+                  </select>
                 </div>
 
                 <div>
@@ -3509,6 +3928,50 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                 </div>
               </div>
 
+              {/* Click Track Alignment Indicator */}
+              <div className="p-3 rounded-xl bg-[#090C12] border border-white/[0.06] flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-cyan-950/70 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0">
+                    <Clock className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <span>Click Track Aligned to {pendingAudioImport.timeSig}</span>
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-900/60 text-cyan-300 border border-cyan-500/30 font-bold">
+                        {pendingAudioImport.downbeatOffsetSec >= 0 ? '+' : ''}{Math.round(pendingAudioImport.downbeatOffsetSec * 1000)}ms offset
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-400">
+                      Locks Beat 1 metronome click directly onto audio transient with 0 drift.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setPendingAudioImport({
+                      ...pendingAudioImport,
+                      downbeatOffsetSec: Math.max(-0.5, Math.round((pendingAudioImport.downbeatOffsetSec - 0.005) * 1000) / 1000)
+                    })}
+                    className="px-2 py-1 rounded bg-slate-800 text-slate-300 hover:text-white font-mono text-[10px] font-bold transition"
+                    title="Nudge downbeat -5ms"
+                  >
+                    -5ms
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPendingAudioImport({
+                      ...pendingAudioImport,
+                      downbeatOffsetSec: Math.min(2.0, Math.round((pendingAudioImport.downbeatOffsetSec + 0.005) * 1000) / 1000)
+                    })}
+                    className="px-2 py-1 rounded bg-slate-800 text-slate-300 hover:text-white font-mono text-[10px] font-bold transition"
+                    title="Nudge downbeat +5ms"
+                  >
+                    +5ms
+                  </button>
+                </div>
+              </div>
+
               {/* Arranger Structure Slicing Mode */}
               <div className="p-3.5 rounded-xl bg-[#090C12] border border-white/[0.06] space-y-2.5">
                 <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-semibold flex items-center justify-between">
@@ -3516,10 +3979,33 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                     <Split className="w-3.5 h-3.5 text-cyan-400" />
                     <span>Arranger Slicing Structure</span>
                   </div>
-                  <span className="text-cyan-400 font-bold">{pendingAudioImport.splitMode === 'CURRENT_ARRANGER' ? 'Arranger Layout' : 'Dynamic Auto-Map'}</span>
+                  <span className="text-cyan-400 font-bold">
+                    {pendingAudioImport.splitMode === 'SMART_ARRANGEMENT' ? 'Auto-Arrangement Slicing' : 'Fit Current Arranger'}
+                  </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPendingAudioImport({ ...pendingAudioImport, splitMode: 'SMART_ARRANGEMENT' })}
+                    className={`p-2.5 rounded-lg border text-left transition ${
+                      pendingAudioImport.splitMode === 'SMART_ARRANGEMENT'
+                        ? 'bg-cyan-950/60 border-cyan-400/80 text-white shadow-md'
+                        : 'bg-black/40 border-white/[0.06] text-slate-400 hover:border-white/20'
+                    }`}
+                  >
+                    <div className="text-xs font-bold flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span>Smart Song Arrangement</span>
+                        <span className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Auto</span>
+                      </div>
+                      {pendingAudioImport.splitMode === 'SMART_ARRANGEMENT' && <Check className="w-3.5 h-3.5 text-cyan-400" />}
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Analyzes actual energy & dynamics to split into Intro, Verses, Choruses, Bridge, and Outro.
+                    </p>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => setPendingAudioImport({ ...pendingAudioImport, splitMode: 'CURRENT_ARRANGER' })}
@@ -3530,29 +4016,11 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                     }`}
                   >
                     <div className="text-xs font-bold flex items-center justify-between">
-                      <span>Split to Current Arranger</span>
+                      <span>Fit Current Arranger</span>
                       {pendingAudioImport.splitMode === 'CURRENT_ARRANGER' && <Check className="w-3.5 h-3.5 text-cyan-400" />}
                     </div>
                     <p className="text-[10px] text-slate-400 mt-1">
-                      Slices audio into active {sections.length} sections ({totalBars} bars): {sections.map(s => s.name).slice(0, 3).join(', ')}...
-                    </p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setPendingAudioImport({ ...pendingAudioImport, splitMode: 'DYNAMIC_SECTIONS' })}
-                    className={`p-2.5 rounded-lg border text-left transition ${
-                      pendingAudioImport.splitMode === 'DYNAMIC_SECTIONS'
-                        ? 'bg-cyan-950/60 border-cyan-400/80 text-white shadow-md'
-                        : 'bg-black/40 border-white/[0.06] text-slate-400 hover:border-white/20'
-                    }`}
-                  >
-                    <div className="text-xs font-bold flex items-center justify-between">
-                      <span>Auto-Detect Sections</span>
-                      {pendingAudioImport.splitMode === 'DYNAMIC_SECTIONS' && <Check className="w-3.5 h-3.5 text-cyan-400" />}
-                    </div>
-                    <p className="text-[10px] text-slate-400 mt-1">
-                      Builds new arrangement structure covering full {formatDuration(pendingAudioImport.duration)} duration.
+                      Fits audio into active {sections.length} sections ({totalBars} bars): {sections.map(s => s.name).slice(0, 3).join(', ')}...
                     </p>
                   </button>
                 </div>
@@ -3565,38 +4033,59 @@ ${tracks.map((t, i) => `      <AudioTrack Id="${i}" Name="${t.name}" OutputRoute
                     className="rounded bg-slate-900 border-white/20 text-cyan-500 focus:ring-0"
                   />
                   <span className="text-xs font-medium text-slate-300">
-                    Auto-separate song into 5 Arranger Stems (Drums, Bass, Keys, Guitars, Vocals)
+                    Extract all elements into 5 separate stem tracks (Drums, Bass, Keys, Guitars, Vocals)
                   </span>
                 </label>
               </div>
 
               {/* Arranger Sections & Slices Preview */}
-              <div>
-                <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1.5">
-                  <span>Arranger Sections & Slices</span>
-                  <span className="text-cyan-400 font-bold">
-                    {pendingAudioImport.splitMode === 'CURRENT_ARRANGER' ? sections.length : generateSectionsForAudio(pendingAudioImport.duration, pendingAudioImport.bpm, pendingAudioImport.timeSig).length} Sections
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-1.5 p-2 rounded-xl bg-[#090C12] border border-white/[0.06] max-h-28 overflow-y-auto">
-                  {(pendingAudioImport.splitMode === 'CURRENT_ARRANGER'
-                    ? splitAudioIntoArrangerSections(pendingAudioImport.audioBuffer, sections, pendingAudioImport.bpm, pendingAudioImport.timeSig === '3/4' ? 3 : pendingAudioImport.timeSig === '6/8' ? 6 : 4)
-                    : splitAudioIntoArrangerSections(pendingAudioImport.audioBuffer, generateSectionsForAudio(pendingAudioImport.duration, pendingAudioImport.bpm, pendingAudioImport.timeSig), pendingAudioImport.bpm, 4)
-                  ).map((s, idx) => (
-                    <span
-                      key={idx}
-                      className="text-[10px] font-mono px-2 py-1 rounded-md bg-slate-800/80 border border-white/[0.06] text-slate-200 flex items-center gap-1.5"
-                    >
-                      <span className="font-semibold">{s.name} ({s.bars}b)</span>
-                      {s.audioSlice && (
-                        <span className="text-cyan-400 font-bold text-[9px] bg-black/50 px-1 rounded">
-                          {formatDuration(s.audioSlice.startSec)}–{formatDuration(s.audioSlice.endSec)}
+              {(() => {
+                const previewSections = pendingAudioImport.splitMode === 'SMART_ARRANGEMENT'
+                  ? analyzeSongArrangementStructure(
+                      pendingAudioImport.audioBuffer,
+                      pendingAudioImport.bpm,
+                      pendingAudioImport.timeSig,
+                      pendingAudioImport.musicalKey,
+                      pendingAudioImport.downbeatOffsetSec
+                    )
+                  : splitAudioIntoArrangerSections(
+                      pendingAudioImport.audioBuffer,
+                      sections,
+                      pendingAudioImport.bpm,
+                      pendingAudioImport.timeSig === '3/4' ? 3 : pendingAudioImport.timeSig === '6/8' ? 6 : 4,
+                      pendingAudioImport.downbeatOffsetSec
+                    );
+
+                return (
+                  <div>
+                    <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1.5">
+                      <span>Arrangement Sections & Timecodes</span>
+                      <span className="text-cyan-400 font-bold">
+                        {previewSections.length} Sections ({previewSections.reduce((acc, s) => acc + s.bars, 0)} Bars)
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 p-2 rounded-xl bg-[#090C12] border border-white/[0.06] max-h-28 overflow-y-auto">
+                      {previewSections.map((s, idx) => (
+                        <span
+                          key={idx}
+                          className="text-[10px] font-mono px-2 py-1 rounded-md bg-slate-800/80 border border-white/[0.06] text-slate-200 flex items-center gap-1.5"
+                        >
+                          <span
+                            className="w-1.5 h-1.5 rounded-full shrink-0"
+                            style={{ backgroundColor: SECTION_TYPES[s.type]?.color || '#38BDF8' }}
+                          />
+                          <span className="font-semibold">{s.name} ({s.bars}b)</span>
+                          {s.audioSlice && (
+                            <span className="text-cyan-400 font-bold text-[9px] bg-black/50 px-1 rounded">
+                              {formatDuration(s.audioSlice.startSec)}–{formatDuration(s.audioSlice.endSec)}
+                            </span>
+                          )}
                         </span>
-                      )}
-                    </span>
-                  ))}
-                </div>
-              </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-white/[0.06]">
